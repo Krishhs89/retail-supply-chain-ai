@@ -11,6 +11,8 @@ Tabs:
   7. Shelf & Store — HQ→DC→Store replenishment chain
   8. Financial Impact — P&L waterfall, trade dollars, carrying cost
   9. Data Sources  — provenance and freshness tracker
+ 10. Workflow      — integrated step-by-step scenario builder
+ 11. Flow Map      — LangGraph DAG visualization with execution trace
 """
 
 import sys
@@ -262,7 +264,8 @@ st.markdown(
 # ─── Tabs ─────────────────────────────────────────────────────────────────────
 
 (tab_dash, tab_chat, tab_price, tab_supply, tab_forecast,
- tab_scenario, tab_shelf, tab_finance, tab_data) = st.tabs([
+ tab_scenario, tab_shelf, tab_finance, tab_data,
+ tab_workflow, tab_flowmap) = st.tabs([
     "Dashboard",
     "Chat",
     "Price Cascade",
@@ -272,6 +275,8 @@ st.markdown(
     "Shelf & Store",
     "Financial Impact",
     "Data Sources",
+    "Workflow",
+    "Flow Map",
 ])
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -1318,3 +1323,731 @@ with tab_data:
         height=300,
     )
     st.plotly_chart(fig_d, use_container_width=True)
+
+# ════════════════════════════════════════════════════════════════════════════
+# TAB 10 — WORKFLOW (Integrated Step-by-Step Scenario Builder)
+# ════════════════════════════════════════════════════════════════════════════
+with tab_workflow:
+    st.subheader("Integrated Scenario Workflow Builder")
+    st.caption(
+        "Walk through a structured decision flow — pick your trigger, context, and objective, "
+        "then let the AI run the full cascade analysis and present ranked options with ripple-effect timelines."
+    )
+
+    # ── Step 1: Business Trigger ──
+    st.markdown("### Step 1 — Business Trigger")
+    st.markdown("What event is driving this decision?")
+
+    trigger_options = {
+        "🔺 Price Change": "price_change",
+        "🚛 Supply Disruption": "supply_disruption",
+        "📉 Demand Shift": "demand_shift",
+        "📦 Tariff / Cost Increase": "tariff",
+        "🎄 Seasonal Event": "seasonal",
+        "⚔️ Competitive Move": "competitive",
+    }
+
+    trigger_cols = st.columns(3)
+    selected_trigger = st.session_state.get("wf_trigger", "🔺 Price Change")
+
+    for i, label in enumerate(trigger_options):
+        col = trigger_cols[i % 3]
+        with col:
+            is_selected = selected_trigger == label
+            btn_style = (
+                "background:#0071ce;color:white;border:none;padding:10px;width:100%;border-radius:8px;cursor:pointer;font-weight:600;"
+                if is_selected else
+                "background:#f8f9fa;color:#212529;border:1px solid #dee2e6;padding:10px;width:100%;border-radius:8px;cursor:pointer;"
+            )
+            if st.button(label, key=f"wf_trigger_{label}", use_container_width=True):
+                st.session_state["wf_trigger"] = label
+                st.rerun()
+
+    selected_trigger = st.session_state.get("wf_trigger", "🔺 Price Change")
+    trigger_key = trigger_options[selected_trigger]
+
+    st.divider()
+
+    # ── Step 2: Context ──
+    st.markdown("### Step 2 — Context")
+    wf_col1, wf_col2, wf_col3 = st.columns(3)
+
+    with wf_col1:
+        sku_labels = {
+            "HUG48-3": "Huggies Size 3 (Diapers)",
+            "MLK-GAL": "Whole Milk Gallon",
+            "CIG-PKT": "Marlboro Cigarettes",
+            "OJ-64": "Tropicana OJ 64oz",
+            "FORMULA-24": "Similac Formula 24pk",
+        }
+        wf_sku = st.selectbox(
+            "SKU / Product",
+            options=list(sku_labels.keys()),
+            format_func=lambda x: sku_labels[x],
+            key="wf_sku",
+        )
+
+    with wf_col2:
+        wf_region = st.selectbox(
+            "Region",
+            ["All Regions", "SE — Southeast", "NW — Northwest", "NE — Northeast", "SW — Southwest"],
+            key="wf_region",
+        )
+
+    with wf_col3:
+        wf_horizon = st.selectbox(
+            "Horizon",
+            ["2 weeks (operational)", "4 weeks (tactical)", "8 weeks (strategic)"],
+            key="wf_horizon",
+        )
+
+    # Trigger-specific inputs
+    st.markdown("#### Trigger Parameters")
+
+    if trigger_key == "price_change":
+        p_col1, p_col2 = st.columns(2)
+        base_price = mock_executor.PRODUCTS.get(wf_sku, {}).get("base_price", 10.0)
+        with p_col1:
+            wf_current_price = st.number_input(
+                "Current Price ($)", value=float(base_price), step=0.01, key="wf_cur_price"
+            )
+        with p_col2:
+            wf_new_price = st.number_input(
+                "New Price ($)", value=float(base_price * 1.10), step=0.01, key="wf_new_price"
+            )
+        pct_change = round((wf_new_price - wf_current_price) / wf_current_price * 100, 1)
+        direction = "increase" if pct_change > 0 else "decrease"
+        st.caption(f"→ {abs(pct_change):.1f}% price {direction}")
+
+    elif trigger_key == "supply_disruption":
+        d_col1, d_col2 = st.columns(2)
+        with d_col1:
+            wf_carrier = st.selectbox(
+                "Affected Carrier",
+                ["TruckCo A", "TruckCo B", "TruckCo C", "TruckCo D"],
+                index=1,
+                key="wf_carrier",
+            )
+        with d_col2:
+            wf_disruption_days = st.slider("Expected Duration (days)", 1, 30, 14, key="wf_disrupt_days")
+
+    elif trigger_key == "demand_shift":
+        wf_demand_pct = st.slider(
+            "Demand Change (%)", -30, 30, -10, key="wf_demand_pct",
+            help="Negative = demand drop, Positive = demand surge"
+        )
+        wf_demand_driver = st.selectbox(
+            "Primary Driver",
+            ["Weather event", "Competitor promotion", "Demographic shift", "Media coverage", "Seasonal"],
+            key="wf_demand_driver",
+        )
+
+    elif trigger_key == "tariff":
+        wf_tariff_pct = st.slider("Cost Increase (%)", 1, 50, 25, key="wf_tariff_pct")
+        st.caption("The AI will model how much of this cost can be passed to consumers vs. absorbed in margin.")
+
+    elif trigger_key == "seasonal":
+        wf_season = st.selectbox(
+            "Seasonal Event",
+            ["Back-to-School (Aug)", "Thanksgiving (Nov)", "Christmas (Dec)", "Super Bowl (Feb)", "Summer (Jun-Aug)"],
+            key="wf_season",
+        )
+        wf_uplift_pct = st.slider("Expected Demand Uplift (%)", 5, 50, 20, key="wf_uplift_pct")
+
+    elif trigger_key == "competitive":
+        wf_competitor = st.selectbox(
+            "Competitor",
+            ["Costco", "Target", "Amazon", "Kroger", "Aldi"],
+            key="wf_competitor",
+        )
+        wf_comp_pct = st.slider("Competitor Price Change (%)", -30, 0, -15, key="wf_comp_pct")
+
+    st.divider()
+
+    # ── Step 3: Decision Objective ──
+    st.markdown("### Step 3 — Decision Objective")
+    st.caption("Select one or more objectives to optimize for. The AI will rank options accordingly.")
+
+    obj_col1, obj_col2, obj_col3, obj_col4 = st.columns(4)
+    obj_revenue = obj_col1.checkbox("Maximize Revenue", value=True, key="wf_obj_rev")
+    obj_margin = obj_col2.checkbox("Maximize Margin", value=True, key="wf_obj_margin")
+    obj_service = obj_col3.checkbox("Service Level / Availability", value=False, key="wf_obj_service")
+    obj_cost = obj_col4.checkbox("Minimize Cost", value=False, key="wf_obj_cost")
+
+    objectives = []
+    if obj_revenue: objectives.append("revenue maximization")
+    if obj_margin: objectives.append("margin maximization")
+    if obj_service: objectives.append("service level / stockout prevention")
+    if obj_cost: objectives.append("cost minimization")
+    if not objectives:
+        objectives = ["revenue maximization"]
+
+    st.divider()
+
+    # ── Step 4: Run Analysis ──
+    st.markdown("### Step 4 — Run AI Analysis")
+
+    # Build the query from selections
+    def _build_workflow_query():
+        sku_name = sku_labels.get(wf_sku, wf_sku)
+        region_str = wf_region.split(" — ")[0] if " — " in wf_region else wf_region
+        horizon_str = wf_horizon.split(" ")[0] + " " + wf_horizon.split(" ")[1]
+        obj_str = " and ".join(objectives)
+
+        if trigger_key == "price_change":
+            return (
+                f"Analyze a price change for {sku_name} ({wf_sku}) from ${wf_current_price:.2f} "
+                f"to ${wf_new_price:.2f} ({'+' if pct_change > 0 else ''}{pct_change:.1f}%) "
+                f"in the {region_str} region over a {horizon_str} horizon. "
+                f"Optimize for: {obj_str}. "
+                f"Cover: demand elasticity (asymmetric if applicable), inventory and replenishment impact, "
+                f"carrier capacity requirements, financial margin with vendor trade netting, "
+                f"and scenario conflict detection. "
+                f"Provide 3 ranked options (proceed / modify / defer) with trade-offs."
+            )
+        elif trigger_key == "supply_disruption":
+            return (
+                f"{wf_carrier} is experiencing a supply disruption expected to last {wf_disruption_days} days, "
+                f"affecting {sku_name} ({wf_sku}) in the {region_str} region. "
+                f"Optimize for: {obj_str} over {horizon_str}. "
+                f"Analyze: stockout risk by DC, alternate carrier options with cost and coverage gaps, "
+                f"revenue at risk, and a mitigation plan with ranked options."
+            )
+        elif trigger_key == "demand_shift":
+            driver = st.session_state.get("wf_demand_driver", "external event")
+            change = st.session_state.get("wf_demand_pct", -10)
+            direction_word = "increase" if change > 0 else "decrease"
+            return (
+                f"Demand for {sku_name} ({wf_sku}) in {region_str} is expected to {direction_word} "
+                f"by {abs(change)}% due to {driver} over the next {horizon_str}. "
+                f"Optimize for: {obj_str}. "
+                f"Analyze: inventory adequacy, replenishment adjustment needs, "
+                f"financial impact, and 3 ranked response options."
+            )
+        elif trigger_key == "tariff":
+            tariff = st.session_state.get("wf_tariff_pct", 25)
+            return (
+                f"A {tariff}% cost increase (tariff/duty) is being applied to {sku_name} ({wf_sku}). "
+                f"Region: {region_str}. Horizon: {horizon_str}. Optimize for: {obj_str}. "
+                f"Model: cost pass-through scenarios (full / partial / absorb), "
+                f"demand elasticity impact, margin erosion, and vendor trade dollar adjustments. "
+                f"Provide 3 ranked response strategies."
+            )
+        elif trigger_key == "seasonal":
+            season = st.session_state.get("wf_season", "Seasonal event")
+            uplift = st.session_state.get("wf_uplift_pct", 20)
+            return (
+                f"Plan for {season} seasonal demand uplift of {uplift}% for {sku_name} ({wf_sku}) "
+                f"in {region_str} over {horizon_str}. Optimize for: {obj_str}. "
+                f"Analyze: inventory build requirements, replenishment schedule, "
+                f"carrier capacity needs, and risk of over-ordering vs. stockout. "
+                f"Provide 3 ranked inventory strategies."
+            )
+        elif trigger_key == "competitive":
+            competitor = st.session_state.get("wf_competitor", "Competitor")
+            comp_pct = st.session_state.get("wf_comp_pct", -15)
+            return (
+                f"{competitor} has reduced their price for a comparable product to {sku_name} ({wf_sku}) "
+                f"by {abs(comp_pct)}% in {region_str}. Horizon: {horizon_str}. Optimize for: {obj_str}. "
+                f"Analyze: expected demand cannibalization, price match vs. differentiate options, "
+                f"margin impact of matching, and 3 ranked competitive response strategies."
+            )
+        return f"Analyze the supply chain situation for {sku_name} in {region_str} over {horizon_str}."
+
+    wf_query = _build_workflow_query()
+
+    with st.expander("Preview AI Query", expanded=False):
+        st.text(wf_query)
+
+    run_col1, run_col2 = st.columns([2, 1])
+    with run_col1:
+        run_workflow = st.button(
+            "Run Analysis (V2 — LangGraph)",
+            type="primary",
+            use_container_width=True,
+            key="wf_run_btn",
+        )
+    with run_col2:
+        wf_pipeline = st.selectbox(
+            "Pipeline",
+            ["V2 — LangGraph", "V1 — Agentic Loop"],
+            key="wf_pipeline_sel",
+            label_visibility="collapsed",
+        )
+
+    if run_workflow:
+        use_v2_wf = "V2" in wf_pipeline
+        wf_result = None
+
+        with st.status("Running workflow analysis...", expanded=True) as wf_status:
+            try:
+                if use_v2_wf:
+                    st.write("→ Routing query through LangGraph nodes...")
+                    from agents.langgraph_flow import run_langgraph
+                    wf_result = run_langgraph(wf_query, [])
+                    st.write(f"→ Nodes executed: {', '.join(wf_result.get('node_outputs', {}).keys())}")
+                    wf_status.update(label="Analysis complete", state="complete")
+                else:
+                    st.write("→ Running V1 agentic loop...")
+                    orch = _get_orchestrator()
+                    wf_result = orch.run(wf_query, history=[], max_iterations=10)
+                    wf_status.update(label="Analysis complete", state="complete")
+            except Exception as exc:
+                wf_status.update(label=f"Error: {exc}", state="error")
+                st.error(str(exc))
+
+        if wf_result:
+            st.session_state["wf_last_result"] = wf_result
+            st.session_state["wf_last_query"] = wf_query
+            st.session_state["wf_last_trigger"] = trigger_key
+            st.session_state["wf_last_sku"] = wf_sku
+
+    # ── Step 5: Results ──
+    wf_last = st.session_state.get("wf_last_result")
+    if wf_last:
+        st.divider()
+        st.markdown("### Step 5 — Analysis Results")
+
+        response_text = wf_last.get("response", "")
+        if response_text:
+            st.markdown(response_text)
+
+        # Tool calls summary
+        tool_calls = wf_last.get("tool_calls", [])
+        if tool_calls:
+            with st.expander(f"Tools Used ({len(tool_calls)})", expanded=False):
+                tc_rows = []
+                for tc in tool_calls:
+                    tc_rows.append({
+                        "Tool": tc.get("tool", ""),
+                        "Input": str(tc.get("input", ""))[:80],
+                        "Result Preview": str(tc.get("result", ""))[:80],
+                    })
+                if tc_rows:
+                    st.dataframe(pd.DataFrame(tc_rows), use_container_width=True, hide_index=True)
+
+        # Node trace (V2 only)
+        node_outputs = wf_last.get("node_outputs", {})
+        if node_outputs:
+            with st.expander("LangGraph Node Trace", expanded=False):
+                for node_name, node_out in node_outputs.items():
+                    st.markdown(f"**{node_name}** → {str(node_out)[:200]}")
+
+        st.divider()
+
+        # ── Step 6: Ripple Effect Timeline ──
+        st.markdown("### Step 6 — Decision Ripple Effect (Day 0 → 30)")
+        st.caption("How the selected trigger propagates across the supply chain over 30 days.")
+
+        last_trigger = st.session_state.get("wf_last_trigger", "price_change")
+        last_sku = st.session_state.get("wf_last_sku", "HUG48-3")
+        prod = mock_executor.PRODUCTS.get(last_sku, {})
+
+        # Build timeline events based on trigger type
+        if last_trigger == "price_change":
+            elasticity = prod.get("elasticity", -1.2)
+            is_asym = prod.get("asymmetric", False)
+            new_p = st.session_state.get("wf_new_price", prod.get("base_price", 10) * 1.10)
+            cur_p = st.session_state.get("wf_cur_price", prod.get("base_price", 10))
+            pct = (new_p - cur_p) / cur_p
+            demand_impact = pct * elasticity * 100
+            if is_asym and pct < 0:
+                demand_impact *= prod.get("recovery_factor", 0.70)
+
+            timeline_events = [
+                {"Day": 0, "Domain": "Pricing", "Event": f"Price changes: ${cur_p:.2f} → ${new_p:.2f}"},
+                {"Day": 1, "Domain": "Demand", "Event": f"Demand model updates: {demand_impact:+.1f}% volume shift"},
+                {"Day": 1, "Domain": "Finance", "Event": "Revenue forecast recalculated"},
+                {"Day": 2, "Domain": "Inventory", "Event": "Reorder point recalculated from new demand signal"},
+                {"Day": 3, "Domain": "Supply Chain", "Event": "Replenishment PO adjusted and transmitted to DC"},
+                {"Day": 4, "Domain": "Supply Chain", "Event": "HQ→DC leg of replenishment order in transit"},
+                {"Day": 7, "Domain": "Inventory", "Event": "DC receives adjusted stock; WMS updated"},
+                {"Day": 10, "Domain": "Inventory", "Event": "Store shelves reflect new inventory level"},
+                {"Day": 14, "Domain": "Finance", "Event": "14-day margin vs. forecast reconciliation"},
+                {"Day": 30, "Domain": "Finance", "Event": "Month-end P&L close: actual vs. projected impact"},
+            ]
+        elif last_trigger == "supply_disruption":
+            dur = st.session_state.get("wf_disrupt_days", 14)
+            timeline_events = [
+                {"Day": 0, "Domain": "Supply Chain", "Event": f"Disruption confirmed — carrier unavailable"},
+                {"Day": 1, "Domain": "Inventory", "Event": "DC-level days-of-supply clock starts ticking"},
+                {"Day": 1, "Domain": "Supply Chain", "Event": "Alternate carrier evaluation begins"},
+                {"Day": 2, "Domain": "Finance", "Event": "Revenue-at-risk quantified per region"},
+                {"Day": 2, "Domain": "Supply Chain", "Event": "Alternate carrier contracted (if available)"},
+                {"Day": 4, "Domain": "Inventory", "Event": "First DC hits safety stock threshold"},
+                {"Day": 5, "Domain": "Inventory", "Event": "Emergency replenishment via alternate carrier dispatched"},
+                {"Day": 7, "Domain": "Inventory", "Event": "Alternate carrier delivers first shipment (+45% cost)"},
+                {"Day": dur, "Domain": "Supply Chain", "Event": "Disruption resolved — primary carrier resumes"},
+                {"Day": dur + 3, "Domain": "Inventory", "Event": "Inventory normalized; DCs restocked"},
+                {"Day": 30, "Domain": "Finance", "Event": "Total disruption cost reconciled vs. revenue saved"},
+            ]
+        else:
+            timeline_events = [
+                {"Day": 0, "Domain": "Strategy", "Event": "Decision triggered"},
+                {"Day": 1, "Domain": "Demand", "Event": "Demand model receives new signal"},
+                {"Day": 2, "Domain": "Inventory", "Event": "Inventory plan adjusted"},
+                {"Day": 3, "Domain": "Supply Chain", "Event": "Replenishment updated"},
+                {"Day": 7, "Domain": "Finance", "Event": "7-day financial impact measurement"},
+                {"Day": 30, "Domain": "Finance", "Event": "Month-end reconciliation"},
+            ]
+
+        timeline_df = pd.DataFrame(timeline_events)
+        domain_colors = {
+            "Pricing": "#0071ce",
+            "Demand": "#f39c12",
+            "Inventory": "#27ae60",
+            "Supply Chain": "#e74c3c",
+            "Finance": "#8e44ad",
+            "Strategy": "#2980b9",
+        }
+
+        # Gantt-style scatter plot
+        fig_timeline = go.Figure()
+
+        for _, row in timeline_df.iterrows():
+            color = domain_colors.get(row["Domain"], "#95a5a6")
+            fig_timeline.add_trace(go.Scatter(
+                x=[row["Day"]],
+                y=[row["Domain"]],
+                mode="markers+text",
+                marker=dict(size=16, color=color, symbol="circle"),
+                text=[f"Day {row['Day']}"],
+                textposition="top center",
+                name=row["Domain"],
+                hovertemplate=f"<b>Day {row['Day']} — {row['Domain']}</b><br>{row['Event']}<extra></extra>",
+                showlegend=False,
+            ))
+
+        # Add invisible scatter for each domain to create connected lines
+        for domain, grp in timeline_df.groupby("Domain"):
+            color = domain_colors.get(domain, "#95a5a6")
+            if len(grp) > 1:
+                fig_timeline.add_trace(go.Scatter(
+                    x=grp["Day"].tolist(),
+                    y=[domain] * len(grp),
+                    mode="lines",
+                    line=dict(color=color, width=2, dash="dot"),
+                    showlegend=False,
+                    hoverinfo="skip",
+                ))
+
+        fig_timeline.update_layout(
+            title="Decision Ripple Effect — Day 0 to 30",
+            xaxis_title="Day",
+            yaxis_title="Domain",
+            height=380,
+            xaxis=dict(range=[-1, 32]),
+            plot_bgcolor="white",
+            paper_bgcolor="white",
+        )
+        st.plotly_chart(fig_timeline, use_container_width=True)
+
+        # Event table
+        with st.expander("Full Event Timeline", expanded=False):
+            st.dataframe(timeline_df, use_container_width=True, hide_index=True)
+
+# ════════════════════════════════════════════════════════════════════════════
+# TAB 11 — FLOW MAP (LangGraph DAG Visualization)
+# ════════════════════════════════════════════════════════════════════════════
+with tab_flowmap:
+    st.subheader("LangGraph Flow Map")
+    st.caption(
+        "Visual representation of the V2 LangGraph multi-agent graph. "
+        "Green nodes = executed in your last Chat query. Gray = available but not invoked."
+    )
+
+    # Node positions (x, y) — center of each node box
+    NODE_POSITIONS = {
+        "router":             (5.0, 9.5),
+        "price_cascade":      (1.0, 7.5),
+        "supply_disruption":  (3.0, 7.5),
+        "demand_forecast":    (5.0, 7.5),
+        "scenario_planning":  (7.0, 7.5),
+        "shelf_replenishment":(9.0, 7.5),
+        "inventory_node":     (1.0, 5.5),
+        "carrier_node":       (3.0, 5.5),
+        "accuracy_node":      (5.0, 5.5),
+        "perishable_check":   (9.0, 5.5),
+        "financial_impact":   (2.0, 3.5),
+        "synthesizer":        (5.0, 1.5),
+    }
+
+    NODE_LABELS = {
+        "router":             "ROUTER\n(intent + entity)",
+        "price_cascade":      "Price\nCascade",
+        "supply_disruption":  "Supply\nDisruption",
+        "demand_forecast":    "Demand\nForecast",
+        "scenario_planning":  "Scenario\nPlanning",
+        "shelf_replenishment":"Shelf\nReplenishment",
+        "inventory_node":     "Inventory\nNode",
+        "carrier_node":       "Carrier\nNode",
+        "accuracy_node":      "Accuracy\nGate",
+        "perishable_check":   "Perishable\nCheck",
+        "financial_impact":   "Financial\nImpact",
+        "synthesizer":        "SYNTHESIZER\n(final response)",
+    }
+
+    NODE_TOOLS = {
+        "router":             "—",
+        "price_cascade":      "simulate_price_change\nget_competitive_pricing\nadjust_promotional_price",
+        "supply_disruption":  "get_carrier_status\nget_dc_inventory",
+        "demand_forecast":    "get_demand_forecast\nanalyze_demand_variables",
+        "scenario_planning":  "detect_scenario_conflicts\ncompare_scenarios",
+        "shelf_replenishment":"get_replenishment_schedule\ncalculate_stockout_risk",
+        "inventory_node":     "get_inventory_levels\nget_reorder_recommendations",
+        "carrier_node":       "find_alternate_carriers\ncalculate_revenue_impact",
+        "accuracy_node":      "get_forecast_accuracy",
+        "perishable_check":   "get_inventory_levels\ncalculate_stockout_risk",
+        "financial_impact":   "calculate_revenue_impact\ncalculate_carrying_cost",
+        "synthesizer":        "—",
+    }
+
+    # Directed edges (from_node, to_node)
+    EDGES = [
+        ("router", "price_cascade"),
+        ("router", "supply_disruption"),
+        ("router", "demand_forecast"),
+        ("router", "scenario_planning"),
+        ("router", "shelf_replenishment"),
+        ("price_cascade", "inventory_node"),
+        ("supply_disruption", "carrier_node"),
+        ("demand_forecast", "accuracy_node"),
+        ("shelf_replenishment", "perishable_check"),
+        ("inventory_node", "financial_impact"),
+        ("carrier_node", "synthesizer"),
+        ("accuracy_node", "synthesizer"),
+        ("perishable_check", "synthesizer"),
+        ("financial_impact", "synthesizer"),
+        ("scenario_planning", "synthesizer"),
+        ("price_cascade", "financial_impact"),
+    ]
+
+    # Determine which nodes were executed in last Chat query
+    executed_nodes = set()
+    last_chat_result = None
+    # Check session state for node_outputs from last Chat query
+    for msg in reversed(st.session_state.get("conversation_history", [])):
+        if isinstance(msg, dict) and msg.get("role") == "assistant":
+            break
+    # Use last_tool_calls to infer which nodes ran
+    last_tool_calls_wf = st.session_state.get("last_tool_calls", [])
+    if last_tool_calls_wf:
+        executed_nodes.add("router")
+        executed_nodes.add("synthesizer")
+        # Infer nodes from tools called
+        tool_to_node = {
+            "simulate_price_change": "price_cascade",
+            "get_competitive_pricing": "price_cascade",
+            "adjust_promotional_price": "price_cascade",
+            "get_carrier_status": "supply_disruption",
+            "get_dc_inventory": "supply_disruption",
+            "find_alternate_carriers": "carrier_node",
+            "get_demand_forecast": "demand_forecast",
+            "analyze_demand_variables": "demand_forecast",
+            "get_forecast_accuracy": "accuracy_node",
+            "detect_scenario_conflicts": "scenario_planning",
+            "compare_scenarios": "scenario_planning",
+            "get_replenishment_schedule": "shelf_replenishment",
+            "get_inventory_levels": "inventory_node",
+            "get_reorder_recommendations": "inventory_node",
+            "calculate_stockout_risk": "inventory_node",
+            "calculate_revenue_impact": "financial_impact",
+            "calculate_carrying_cost": "financial_impact",
+        }
+        for tc in last_tool_calls_wf:
+            tool_name = tc.get("tool", "")
+            if tool_name in tool_to_node:
+                executed_nodes.add(tool_to_node[tool_name])
+                # Add downstream nodes based on execution chain
+                node = tool_to_node[tool_name]
+                if node == "price_cascade":
+                    executed_nodes.add("inventory_node")
+                    executed_nodes.add("financial_impact")
+                elif node == "supply_disruption":
+                    executed_nodes.add("carrier_node")
+                elif node == "demand_forecast":
+                    executed_nodes.add("accuracy_node")
+                elif node == "shelf_replenishment":
+                    executed_nodes.add("perishable_check")
+
+    # Color map
+    def _node_color(node: str) -> str:
+        if node in executed_nodes:
+            return "#27ae60"   # green — executed
+        return "#bdc3c7"       # gray — not executed
+
+    def _node_text_color(node: str) -> str:
+        if node in executed_nodes:
+            return "white"
+        return "#2c3e50"
+
+    # Build Plotly figure
+    fig_flow = go.Figure()
+
+    # Draw edges first (behind nodes)
+    for src, dst in EDGES:
+        x0, y0 = NODE_POSITIONS[src]
+        x1, y1 = NODE_POSITIONS[dst]
+        edge_color = "#27ae60" if (src in executed_nodes and dst in executed_nodes) else "#dee2e6"
+        edge_width = 2.5 if (src in executed_nodes and dst in executed_nodes) else 1.5
+
+        fig_flow.add_annotation(
+            x=x1, y=y1,
+            ax=x0, ay=y0,
+            xref="x", yref="y",
+            axref="x", ayref="y",
+            showarrow=True,
+            arrowhead=3,
+            arrowsize=1.2,
+            arrowwidth=edge_width,
+            arrowcolor=edge_color,
+        )
+
+    # Draw nodes as scatter markers with text
+    for node, (x, y) in NODE_POSITIONS.items():
+        color = _node_color(node)
+        text_color = _node_text_color(node)
+        label = NODE_LABELS[node]
+        tools_hint = NODE_TOOLS[node]
+
+        # Large invisible marker for hover area
+        fig_flow.add_trace(go.Scatter(
+            x=[x], y=[y],
+            mode="markers+text",
+            marker=dict(
+                size=60,
+                color=color,
+                line=dict(color="#2c3e50" if node in executed_nodes else "#adb5bd", width=2),
+                symbol="square",
+            ),
+            text=[label],
+            textposition="middle center",
+            textfont=dict(
+                size=10,
+                color=text_color,
+                family="monospace",
+            ),
+            name=node,
+            hovertemplate=(
+                f"<b>{node}</b><br>"
+                f"Status: {'✅ Executed' if node in executed_nodes else '⬜ Not invoked'}<br>"
+                f"Tools:<br>{tools_hint.replace(chr(10), '<br>')}<extra></extra>"
+            ),
+            showlegend=False,
+        ))
+
+    # Legend annotation
+    fig_flow.add_trace(go.Scatter(
+        x=[None], y=[None],
+        mode="markers",
+        marker=dict(size=12, color="#27ae60", symbol="square"),
+        name="Executed",
+        showlegend=True,
+    ))
+    fig_flow.add_trace(go.Scatter(
+        x=[None], y=[None],
+        mode="markers",
+        marker=dict(size=12, color="#bdc3c7", symbol="square"),
+        name="Not invoked",
+        showlegend=True,
+    ))
+
+    fig_flow.update_layout(
+        title=dict(
+            text="LangGraph Multi-Agent Graph — V2 Pipeline",
+            font=dict(size=16),
+        ),
+        xaxis=dict(range=[-0.5, 10.5], showgrid=False, zeroline=False, showticklabels=False),
+        yaxis=dict(range=[0.5, 11.0], showgrid=False, zeroline=False, showticklabels=False),
+        height=600,
+        plot_bgcolor="white",
+        paper_bgcolor="#f8f9fa",
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1,
+        ),
+        margin=dict(l=20, r=20, t=60, b=20),
+    )
+
+    st.plotly_chart(fig_flow, use_container_width=True)
+
+    if executed_nodes:
+        st.success(
+            f"**Last query executed {len(executed_nodes)} nodes:** "
+            + ", ".join(f"`{n}`" for n in sorted(executed_nodes))
+        )
+    else:
+        st.info(
+            "No query has been run yet. Run a question in the **Chat** tab, "
+            "then return here to see which nodes were executed."
+        )
+
+    st.divider()
+
+    # ── Architecture explanation ──
+    st.markdown("### How the Graph Works")
+
+    arch_col1, arch_col2 = st.columns(2)
+
+    with arch_col1:
+        st.markdown("""
+**Entry Point: Router**
+- Classifies query intent into one of 5 paths
+- Extracts SKU, region, and scenario entities
+- Sets `route` in state to direct flow
+
+**Domain Nodes (parallel candidates)**
+- `price_cascade` → handles pricing decisions
+- `supply_disruption` → handles carrier/supply events
+- `demand_forecast` → handles volume predictions
+- `scenario_planning` → handles multi-scenario comparison
+- `shelf_replenishment` → handles store-level replenishment
+
+**Supporting Nodes (depth layer)**
+- `inventory_node` → follows price_cascade
+- `carrier_node` → follows supply_disruption
+- `accuracy_node` → follows demand_forecast
+- `perishable_check` → follows shelf_replenishment
+- `financial_impact` → follows inventory_node
+        """)
+
+    with arch_col2:
+        st.markdown("""
+**Exit Node: Synthesizer**
+- Receives outputs from all upstream nodes
+- Merges domain findings into a single coherent response
+- Applies provenance warnings (OLAP/WMS/OLTP freshness)
+- Returns final structured recommendation
+
+**Key Design Choices**
+- Each node has a specialized system prompt (focused scope)
+- Each node only receives the tools relevant to its domain
+- Conditional edges enforce domain-specific chains
+- State is accumulated via `add_messages` annotation
+- Synthesizer can access all prior node context
+
+**Execution Paths by Intent**
+| Intent | Path |
+|--------|------|
+| Price change | router → price_cascade → inventory → financial → synthesizer |
+| Supply disruption | router → supply_disruption → carrier → synthesizer |
+| Demand forecast | router → demand_forecast → accuracy → synthesizer |
+| Shelf replenishment | router → shelf_replenishment → perishable → synthesizer |
+| Scenario planning | router → scenario_planning → synthesizer |
+        """)
+
+    st.divider()
+    st.markdown("### Node Tool Assignments")
+
+    tool_rows = []
+    for node, tools in NODE_TOOLS.items():
+        status = "Executed" if node in executed_nodes else "Available"
+        tool_rows.append({
+            "Node": node,
+            "Status": status,
+            "Tools": tools.replace("\n", ", ") if tools != "—" else "—",
+        })
+    st.dataframe(pd.DataFrame(tool_rows), use_container_width=True, hide_index=True)
