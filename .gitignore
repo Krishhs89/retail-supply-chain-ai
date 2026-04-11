@@ -1,0 +1,23 @@
+# Environment — never commit real keys
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Claude Code internal
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
