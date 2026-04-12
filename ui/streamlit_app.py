@@ -2,6 +2,7 @@
 Retail Supply Chain Optimization — Streamlit UI (Full)
 
 Tabs:
+  0. Guide         — new user onboarding, tab walkthrough, sample queries, glossary
   1. Dashboard     — live network status + KPI tiles
   2. Chat          — streaming multi-agent conversational interface
   3. Price Cascade — price change → full downstream simulation
@@ -277,9 +278,10 @@ st.markdown(
 
 # ─── Tabs ─────────────────────────────────────────────────────────────────────
 
-(tab_dash, tab_chat, tab_price, tab_supply, tab_forecast,
+(tab_guide, tab_dash, tab_chat, tab_price, tab_supply, tab_forecast,
  tab_scenario, tab_shelf, tab_finance, tab_data,
  tab_workflow, tab_flowmap) = st.tabs([
+    "⭐ Guide",
     "Dashboard",
     "Chat",
     "Price Cascade",
@@ -292,6 +294,448 @@ st.markdown(
     "Workflow",
     "Flow Map",
 ])
+
+# ════════════════════════════════════════════════════════════════════════════
+# TAB 0 — GUIDE (New User Onboarding)
+# ════════════════════════════════════════════════════════════════════════════
+with tab_guide:
+
+    st.markdown("""
+    <div style="background:linear-gradient(135deg,#0071ce 0%,#004a8f 100%);
+                border-radius:14px;padding:32px 36px;margin-bottom:24px;">
+      <h1 style="color:white;margin:0;font-size:2em;">
+        🏪 Welcome to Retail Supply Chain Optimization AI
+      </h1>
+      <p style="color:#cce5ff;margin:10px 0 0 0;font-size:1.05em;">
+        A multi-agent AI system that simulates how a single retail decision —
+        a price change, a carrier strike, a demand shift — cascades across
+        pricing, inventory, supply chain, and finance <strong style="color:white;">simultaneously</strong>.
+      </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── What this app does ──
+    st.markdown("## What Does This App Do?")
+    st.markdown("""
+In retail, no decision lives in isolation. When you raise the price of diapers by 10%:
+- Demand drops by ~14% (price elasticity)
+- Replenishment orders to the distribution center get adjusted
+- Carrier load requirements shift across regions
+- A planned promotion may suddenly conflict with a supply disruption
+- Net margin changes after vendor trade dollar netting
+
+**This AI reasons through all of those connections at once** — in seconds — using 17 specialist tools and two AI pipelines (a direct Claude agent and a LangGraph multi-agent graph).
+    """)
+
+    st.info(
+        "**No spreadsheet expertise needed.** Ask questions in plain English in the Chat tab, "
+        "or use any of the pre-built tabs to explore specific scenarios.",
+        icon="💡",
+    )
+
+    st.divider()
+
+    # ── Quick Start ──
+    st.markdown("## Quick Start — 3 Ways to Use This App")
+
+    qs1, qs2, qs3 = st.columns(3)
+    with qs1:
+        st.markdown("""
+        <div style="background:#f0f4ff;border:1px solid #0071ce;border-radius:10px;padding:18px;">
+        <h4 style="color:#0071ce;margin-top:0;">💬 Option 1: Just Chat</h4>
+        Go to the <strong>Chat</strong> tab and ask anything:<br><br>
+        <em>"What happens if we raise diaper prices by 10%?"</em><br><br>
+        <em>"TruckCo B is on strike — what's our stockout risk?"</em><br><br>
+        The AI picks the right tools and walks you through the full cascade.
+        </div>
+        """, unsafe_allow_html=True)
+
+    with qs2:
+        st.markdown("""
+        <div style="background:#f0fff4;border:1px solid #28a745;border-radius:10px;padding:18px;">
+        <h4 style="color:#28a745;margin-top:0;">🚀 Option 2: Use a Preset</h4>
+        In the left sidebar, click any of the <strong>6 Quick Scenario</strong> buttons.<br><br>
+        These load a pre-written expert query directly into the Chat tab — perfect for seeing the AI's full reasoning on a real scenario.
+        </div>
+        """, unsafe_allow_html=True)
+
+    with qs3:
+        st.markdown("""
+        <div style="background:#fff8f0;border:1px solid #f39c12;border-radius:10px;padding:18px;">
+        <h4 style="color:#e67e22;margin-top:0;">🔄 Option 3: Build a Workflow</h4>
+        Go to the <strong>Workflow</strong> tab and pick your trigger (price change, carrier strike, demand shift, etc.), set context, choose objectives, and let the AI run the full structured analysis with a Day 0→30 ripple timeline.
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.divider()
+
+    # ── Tab-by-Tab Navigation ──
+    st.markdown("## Tab-by-Tab Navigation Guide")
+
+    tab_guide_data = [
+        {
+            "icon": "📊",
+            "name": "Dashboard",
+            "summary": "Your network at a glance",
+            "desc": (
+                "Start here to understand the current state of the supply chain. "
+                "You'll see **carrier status chips** (TruckCo B is currently on strike — shown in red), "
+                "**DC inventory KPI cards** for all 4 distribution centers, and a **strike impact timeline** "
+                "showing how inventory is projected to deplete over 14 days. "
+                "This tab needs no API key."
+            ),
+            "tip": "Check this tab first before running any analysis to understand what's already broken in the network.",
+            "bg": "#f0f4ff",
+            "border": "#0071ce",
+        },
+        {
+            "icon": "💬",
+            "name": "Chat",
+            "summary": "The main AI interface",
+            "desc": (
+                "This is the core of the app. Type any supply chain question and the AI agent reasons through it, "
+                "calling the right tools in sequence. You can see **every tool call live** as it happens in the status panel. "
+                "Switch between **V1 (Agentic Loop)** and **V2 (LangGraph)** in the sidebar — V1 gives you a single "
+                "all-capable agent, V2 routes your query through specialist nodes and shows a node trace."
+            ),
+            "tip": "Use V2 (LangGraph) for structured decisions. Use V1 for exploratory multi-turn conversation.",
+            "bg": "#f0fff4",
+            "border": "#28a745",
+        },
+        {
+            "icon": "🔺",
+            "name": "Price Cascade",
+            "summary": "Simulate a price change end-to-end",
+            "desc": (
+                "Select a SKU and enter a new price. The tab instantly shows: the demand volume change "
+                "(using real price elasticity), the revenue and margin impact, the adjusted replenishment "
+                "order quantity, and a **waterfall chart** tracing revenue → gross margin → net margin. "
+                "Asymmetric elasticity is applied automatically — sticky products like diapers and tobacco "
+                "don't recover volume proportionally on price cuts."
+            ),
+            "tip": "Try raising Huggies (HUG48-3) from $12.99 to $14.49 and watch the full waterfall.",
+            "bg": "#fff8f0",
+            "border": "#e67e22",
+        },
+        {
+            "icon": "🚛",
+            "name": "Supply Alert",
+            "summary": "Carrier strike and supply disruption analysis",
+            "desc": (
+                "Enter a disruption event (carrier strike, port delay, supplier issue) and see: "
+                "**days-of-supply remaining** per DC as a bar chart, **alternate carrier options** "
+                "with availability, cost premium, and regional coverage gaps. "
+                "TruckCo B is currently on strike — the SE region has a critical gap because "
+                "TruckCo C can't handle diapers (refrigerated trucks only) and TruckCo D charges +45%."
+            ),
+            "tip": "SE is the most vulnerable region. Always check regional coverage before choosing an alternate carrier.",
+            "bg": "#fff0f0",
+            "border": "#dc3545",
+        },
+        {
+            "icon": "📈",
+            "name": "Demand Forecast",
+            "summary": "8-week demand forecast with uncertainty",
+            "desc": (
+                "View the AI-generated demand forecast for any SKU across a configurable horizon. "
+                "The **fan chart** shows confidence intervals that widen 15% per 4-week period — "
+                "so at 8 weeks you're looking at ±30% uncertainty. "
+                "A **forecast accuracy gauge** shows current model accuracy — if it falls below 60%, "
+                "the system flags the forecast as unreliable and won't pass it to the PO system. "
+                "A **variable contribution chart** shows which of the 15 demand drivers matter most."
+            ),
+            "tip": "If accuracy is below 70%, treat any PO decision based on this forecast as high-risk.",
+            "bg": "#f0fff4",
+            "border": "#28a745",
+        },
+        {
+            "icon": "⚖️",
+            "name": "Scenario Planner",
+            "summary": "Compare 3 options side by side",
+            "desc": (
+                "Build and compare up to 3 simultaneous scenarios for the same SKU: "
+                "Hold price / Raise price / Promote. The system runs all three through "
+                "the full cascade and shows a **side-by-side bar chart** of revenue and margin outcomes. "
+                "Critically, it also runs **conflict detection** — if two scenarios overlap in a way that "
+                "creates supply risk (e.g., promotion during carrier strike), it flags CRITICAL."
+            ),
+            "tip": "Always run conflict detection before committing to a promo during any active supply disruption.",
+            "bg": "#f8f0ff",
+            "border": "#8e44ad",
+        },
+        {
+            "icon": "🏬",
+            "name": "Shelf & Store",
+            "summary": "Store-level replenishment and perishables",
+            "desc": (
+                "Enter a store and SKU to see the full replenishment chain: HQ → DC → Store, "
+                "with each leg's timing. A **Gantt chart** shows the timeline. "
+                "For perishable items (dairy), the system enforces a hard **3-day max days-of-supply cap** — "
+                "it will never recommend ordering more than 3 days of milk regardless of demand signal. "
+                "Planogram capacity is also checked — orders exceeding shelf space go to back-of-store."
+            ),
+            "tip": "Replenishment takes 3–4 days minimum. There's a 30% chance of +3 extra days. Plan 5–7 days ahead.",
+            "bg": "#f0f8ff",
+            "border": "#2980b9",
+        },
+        {
+            "icon": "💰",
+            "name": "Financial Impact",
+            "summary": "P&L waterfall and net margin",
+            "desc": (
+                "See the full financial picture of any pricing decision: a **waterfall chart** "
+                "stepping from revenue → gross margin → vendor trade dollar netting → "
+                "VMI inventory adjustment → carrying cost → net margin. "
+                "Vendor trade dollars (the manufacturer subsidy on promotions) are automatically "
+                "netted against promo cost. VMI-owned inventory is excluded from your carrying cost. "
+                "This is the tab to use when the CFO asks what a decision actually cost."
+            ),
+            "tip": "Vendor trade dollars can flip a loss-making promo into a profitable one. Always check the net.",
+            "bg": "#fffff0",
+            "border": "#f39c12",
+        },
+        {
+            "icon": "🗄️",
+            "name": "Data Sources",
+            "summary": "Know how fresh your data is",
+            "desc": (
+                "Every tool call in this system pulls from one of three data sources with different freshness: "
+                "**OLTP** (5-min lag — pricing, POs), **WMS** (15-min lag — operational inventory), "
+                "**OLAP** (24-hour lag — analytics). "
+                "This tab shows which source each tool uses, flags where OLAP data is being used for "
+                "an operational decision (high risk), and lets you compare WMS vs OLAP inventory "
+                "to see how much the 24h batch has drifted from reality."
+            ),
+            "tip": "Never use OLAP inventory numbers for same-day replenishment decisions. Use WMS.",
+            "bg": "#f5f5f5",
+            "border": "#6c757d",
+        },
+        {
+            "icon": "🔄",
+            "name": "Workflow",
+            "summary": "Step-by-step guided decision builder",
+            "desc": (
+                "A structured 6-step workflow for specialist decisions. Pick your **business trigger** "
+                "(price change, supply disruption, demand shift, tariff, seasonal, competitive move), "
+                "set the **context** (SKU, region, horizon), choose your **objectives** "
+                "(revenue / margin / service level / cost), then run the AI analysis. "
+                "Results show ranked options and a **Day 0→30 ripple effect timeline** "
+                "showing how the decision propagates across all domains over a month."
+            ),
+            "tip": "Use this tab when you need a structured, auditable analysis — not just a chat answer.",
+            "bg": "#f0fff4",
+            "border": "#27ae60",
+        },
+        {
+            "icon": "🗺️",
+            "name": "Flow Map",
+            "summary": "See the LangGraph agent graph live",
+            "desc": (
+                "Visual representation of the V2 LangGraph pipeline. All 12 nodes are shown as a DAG "
+                "(directed acyclic graph). After you run a query in the Chat tab with V2 selected, "
+                "come here to see which nodes were executed (shown in **green**) and which were "
+                "available but not invoked (shown in **gray**). Hover over any node to see which "
+                "tools it has access to. Includes an architecture explanation and tool assignment table."
+            ),
+            "tip": "Run a carrier strike query in Chat (V2), then switch here to see the supply_disruption → carrier_node path light up green.",
+            "bg": "#f0f4ff",
+            "border": "#0071ce",
+        },
+    ]
+
+    for tab_item in tab_guide_data:
+        with st.expander(
+            f"{tab_item['icon']}  **{tab_item['name']}** — {tab_item['summary']}",
+            expanded=False,
+        ):
+            col_desc, col_tip = st.columns([3, 2])
+            with col_desc:
+                st.markdown(tab_item["desc"])
+            with col_tip:
+                st.markdown(
+                    f"""<div style="background:{tab_item['bg']};border-left:4px solid {tab_item['border']};
+                    border-radius:6px;padding:14px 16px;">
+                    <strong style="color:{tab_item['border']};">💡 Pro Tip</strong><br>
+                    <span style="font-size:0.93em;">{tab_item['tip']}</span>
+                    </div>""",
+                    unsafe_allow_html=True,
+                )
+
+    st.divider()
+
+    # ── Sidebar Guide ──
+    st.markdown("## Left Sidebar — What Each Section Does")
+
+    sb1, sb2 = st.columns(2)
+    with sb1:
+        st.markdown("""
+**🔑 API Status**
+Shows whether the Anthropic API key is loaded. Green = AI chat is active. Red = Chat tab won't work but all other tabs do.
+
+**🔀 Pipeline Version**
+- **V1 — Agentic Loop:** Single Claude agent with all 17 tools. Best for exploratory, conversational analysis.
+- **V2 — LangGraph:** Structured multi-agent graph. Best for repeatable, auditable decisions. Switching resets chat history.
+
+**⚙️ Agent Config**
+Max iterations slider (V1 only). Simple price queries need 3–6 iterations. Complex multi-SKU scenarios need 15–20.
+        """)
+    with sb2:
+        st.markdown("""
+**📊 Session Stats**
+Live counter of queries run, total tool calls made, and total agent iterations this session.
+
+**🚀 Quick Scenarios**
+Six pre-written expert queries. Click any button to instantly load it into the Chat tab and run it. Great for demos or learning what the system can do.
+
+**🗑 Clear Chat / ↺ Reset All**
+Clear Chat removes conversation history. Reset All also zeroes session stats. Use Reset when switching between scenarios to keep context clean.
+        """)
+
+    st.divider()
+
+    # ── Glossary ──
+    st.markdown("## Key Concepts Glossary")
+
+    g1, g2 = st.columns(2)
+    with g1:
+        st.markdown("""
+| Term | Meaning |
+|------|---------|
+| **Price Elasticity** | How much demand changes per 1% price change. Diapers = -1.4 (10% price rise → 14% volume drop) |
+| **Asymmetric Elasticity** | Price cuts don't recover demand proportionally. Diapers recover only 70%, tobacco only 40% |
+| **Replenishment Lag** | Time from order to shelf: 3–4 days base + 30% chance of +3 extra days |
+| **Days of Supply (DoS)** | How many days current inventory can cover at current demand rate |
+| **Safety Stock** | Minimum buffer inventory kept to absorb demand spikes and late deliveries |
+| **VMI** | Vendor-Managed Inventory — stock owned by the manufacturer, not the retailer. Excludes from your carrying cost |
+        """)
+    with g2:
+        st.markdown("""
+| Term | Meaning |
+|------|---------|
+| **Vendor Trade Dollars** | Manufacturer subsidies on promotions. Netted against promo cost before margin is reported |
+| **Carrying Cost** | Cost of holding inventory: 25% of inventory value per year |
+| **OLTP / WMS / OLAP** | Data sources with 5-min / 15-min / 24-hour freshness lag respectively |
+| **Planogram** | Shelf layout plan. Orders that exceed shelf capacity go to back-of-store |
+| **Scenario Conflict** | When two simultaneous decisions create opposing pressure (e.g., promo + supply disruption) |
+| **Confidence Interval** | Forecast uncertainty band. Widens 15% per 4-week horizon — ±30% at 8 weeks |
+        """)
+
+    st.divider()
+
+    # ── Sample Queries ──
+    st.markdown("## Sample Questions to Ask in the Chat Tab")
+
+    q_col1, q_col2 = st.columns(2)
+    with q_col1:
+        st.markdown("**Pricing**")
+        for q in [
+            "Raise HUG48-3 price from $12.99 to $14.49 — show me the full cascade",
+            "What's the revenue impact of dropping diaper price to $11.99 for 30 days?",
+            "Costco just dropped their diaper price by 15% — should we match it?",
+            "Compare holding vs raising vs promoting HUG48-3 over 8 weeks",
+        ]:
+            st.markdown(f"- *{q}*")
+
+        st.markdown("**Supply Chain**")
+        for q in [
+            "TruckCo B is on strike — what's our stockout risk in SE and MW?",
+            "Find alternate carriers for diapers in the Southeast region",
+            "What is our revenue at risk if the TruckCo B strike lasts 21 days?",
+        ]:
+            st.markdown(f"- *{q}*")
+
+    with q_col2:
+        st.markdown("**Inventory & Demand**")
+        for q in [
+            "Check replenishment status for milk (MLK-GAL) at STR-005",
+            "What's the demand forecast for diapers at 8 weeks with confidence intervals?",
+            "Our forecast accuracy for HUG48-3 is 67% — what's the revenue risk?",
+            "How much inventory should DC-SE hold given the current carrier situation?",
+        ]:
+            st.markdown(f"- *{q}*")
+
+        st.markdown("**Scenarios & Finance**")
+        for q in [
+            "We're running a promo on diapers AND TruckCo B is on strike — is this safe?",
+            "Show me the P&L waterfall for a 10% diaper price increase",
+            "Calculate carrying cost for DC-SE if we pre-build 10 days of inventory",
+            "What's the financial impact of improving forecast accuracy by 7 points?",
+        ]:
+            st.markdown(f"- *{q}*")
+
+    st.divider()
+
+    # ── System Facts ──
+    st.markdown("## System Facts at a Glance")
+
+    fc1, fc2, fc3, fc4 = st.columns(4)
+    fc1.metric("AI Tools", "17", "across 5 domains")
+    fc2.metric("LangGraph Nodes", "12", "router + specialists + synthesizer")
+    fc3.metric("Edge Cases Handled", "17", "production-grade")
+    fc4.metric("App Tabs", "12", "Dashboard to Flow Map")
+
+    st.markdown("")
+
+    kn1, kn2, kn3, kn4 = st.columns(4)
+    kn1.metric("Diaper Elasticity", "-1.4", "10% up → 14% vol down")
+    kn2.metric("Dairy Max Supply", "3 days", "hard perishable cap")
+    kn3.metric("Replenishment Lag", "3–4 days", "+30% chance of +3 more")
+    kn4.metric("Forecast Gate", "60%", "below this: PO blocked")
+
+    st.divider()
+
+    # ── Architecture summary ──
+    st.markdown("## How the AI Works")
+
+    arch1, arch2 = st.columns([2, 3])
+    with arch1:
+        st.markdown("""
+**Two Pipelines, Same Tools**
+
+The sidebar lets you switch between two AI backends:
+
+**V1 — Agentic Loop**
+One Claude claude-sonnet-4-6 agent. It sees all 17 tools and decides which ones to call and in what order. Like a senior analyst who knows every system.
+
+**V2 — LangGraph**
+A graph of 12 specialist agents. A Router classifies your query, routes it to the right domain node (Price Cascade, Supply Disruption, Demand Forecast, etc.), runs supporting nodes (Inventory, Carrier, Accuracy), then a Synthesizer combines everything into one response.
+
+**Both hit the same mock data layer** — a realistic simulation of a Walmart-scale operation with 5 SKUs, 4 carriers, 4 DCs, 10 stores.
+        """)
+    with arch2:
+        st.code("""
+User Query
+    │
+    ▼
+[PIPELINE TOGGLE — sidebar]
+    │
+    ├── V1: Single Agent (Claude claude-sonnet-4-6)
+    │       → 17 tools available
+    │       → Picks tools autonomously
+    │       → Up to 20 iterations
+    │
+    └── V2: LangGraph Multi-Agent Graph
+            → ROUTER  (classifies intent)
+            │
+            ├── price_cascade  → inventory_node → financial_impact
+            ├── supply_disruption → carrier_node
+            ├── demand_forecast   → accuracy_node
+            ├── shelf_replenishment → perishable_check
+            └── scenario_planning
+            │
+            └── SYNTHESIZER (merges all outputs)
+
+[Mock Data Layer]
+  5 SKUs · 4 Carriers · 4 DCs · 10 Stores
+  OLTP (5min) · WMS (15min) · OLAP (24h)
+        """, language="")
+
+    st.success(
+        "**Ready to start?** Click the **Chat** tab and type your first question, "
+        "or try a **Quick Scenario** from the sidebar. The Dashboard tab shows the live network state.",
+        icon="🚀",
+    )
+
 
 # ════════════════════════════════════════════════════════════════════════════
 # TAB 1 — DASHBOARD
