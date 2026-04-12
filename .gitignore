@@ -18,6 +18,9 @@ env/
 # Claude Code internal
 .claude/
 
+# Streamlit secrets (API keys — never commit)
+.streamlit/secrets.toml
+
 # OS
 .DS_Store
 Thumbs.db
