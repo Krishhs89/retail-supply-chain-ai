@@ -70,9 +70,11 @@ logger = logging.getLogger(__name__)
 # ─── LLM ─────────────────────────────────────────────────────────────────────
 
 def _llm(max_tokens: int = 2048) -> ChatAnthropic:
+    import os as _os
+    api_key = _os.getenv("ANTHROPIC_API_KEY", "") or settings.ANTHROPIC_API_KEY
     return ChatAnthropic(
         model=settings.MODEL_ID,
-        api_key=settings.ANTHROPIC_API_KEY,
+        api_key=api_key,
         max_tokens=max_tokens,
     )
 

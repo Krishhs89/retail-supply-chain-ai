@@ -24,13 +24,22 @@ from pathlib import Path
 
 import streamlit as st
 
-# ── Inject Streamlit Cloud secrets into env BEFORE any other import reads them ──
-try:
-    _cloud_key = st.secrets.get("ANTHROPIC_API_KEY", "")
-    if _cloud_key and not os.environ.get("ANTHROPIC_API_KEY"):
-        os.environ["ANTHROPIC_API_KEY"] = _cloud_key
-except Exception:
-    pass  # running locally with .env — dotenv handles it
+
+def _get_api_key() -> str:
+    """Read the Anthropic API key at render time from every possible source."""
+    # 1. Already in environment (local .env via dotenv, or previously injected)
+    key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if key:
+        return key
+    # 2. Streamlit Cloud secrets dashboard
+    try:
+        key = st.secrets["ANTHROPIC_API_KEY"]
+        if key:
+            os.environ["ANTHROPIC_API_KEY"] = key  # cache for non-Streamlit callers
+            return key
+    except Exception:
+        pass
+    return ""
 
 import plotly.graph_objects as go
 import plotly.express as px
@@ -140,15 +149,10 @@ _init_state()
 # ─── Orchestrator (lazy, cached) ─────────────────────────────────────────────
 
 @st.cache_resource
-def _get_orchestrator():
+def _get_orchestrator(_key: str = ""):
+    """Cached per unique API key so a new key always gets a fresh client."""
     from agents.orchestrator import Orchestrator
     return Orchestrator()
-
-def get_orchestrator():
-    try:
-        return _get_orchestrator()
-    except Exception as exc:
-        return None, str(exc)
 
 # ─── Sidebar ─────────────────────────────────────────────────────────────────
 
@@ -159,7 +163,7 @@ with st.sidebar:
 
     # ── API Key Status ──
     st.markdown("### 🔑 API Status")
-    key_ok = bool(settings.ANTHROPIC_API_KEY)
+    key_ok = bool(_get_api_key())
     if key_ok:
         st.markdown('<span class="chip-green">✓ Anthropic API Key loaded</span>', unsafe_allow_html=True)
         st.caption(f"Model: `{settings.MODEL_ID}`")
@@ -431,8 +435,8 @@ with tab_chat:
 
     if not key_ok:
         st.warning(
-            "API key not detected. Add `ANTHROPIC_API_KEY` to your `.env` file. "
-            "All other tabs work without an API key."
+            "API key not detected. Add `ANTHROPIC_API_KEY` to Streamlit secrets (cloud) "
+            "or your `.env` file (local). All other tabs work without an API key."
         )
 
     # ── Render existing history ──
@@ -456,7 +460,7 @@ with tab_chat:
 
         with st.chat_message("assistant"):
             if not key_ok:
-                st.error("Set ANTHROPIC_API_KEY in .env to enable the AI agent.")
+                st.error("ANTHROPIC_API_KEY not found. Add it to Streamlit secrets (cloud) or .env (local).")
             else:
                 result = None
                 response_placeholder = st.empty()
@@ -526,7 +530,7 @@ with tab_chat:
                             import anthropic as _anthropic
                             from tools.tool_definitions import ALL_TOOLS
 
-                            client = _anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+                            client = _anthropic.Anthropic(api_key=_get_api_key())
                             messages = list(st.session_state.conversation_history[:-1])
                             if len(messages) >= settings.HISTORY_SUMMARIZE_THRESHOLD:
                                 messages = _summarize_history(client, messages)
@@ -1599,7 +1603,7 @@ with tab_workflow:
                     wf_status.update(label="Analysis complete", state="complete")
                 else:
                     st.write("→ Running V1 agentic loop...")
-                    orch = _get_orchestrator()
+                    orch = _get_orchestrator(_get_api_key())
                     wf_result = orch.run(wf_query, history=[], max_iterations=10)
                     wf_status.update(label="Analysis complete", state="complete")
             except Exception as exc:

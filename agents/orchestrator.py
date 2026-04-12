@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional, Tuple
@@ -149,11 +150,12 @@ def _summarize_history(client: anthropic.Anthropic, messages: List[Dict]) -> Lis
 
 class Orchestrator:
     def __init__(self):
-        if not settings.ANTHROPIC_API_KEY:
+        api_key = os.getenv("ANTHROPIC_API_KEY", "") or settings.ANTHROPIC_API_KEY
+        if not api_key:
             raise ValueError(
-                "ANTHROPIC_API_KEY not set. Add it to your .env file or environment."
+                "ANTHROPIC_API_KEY not set. Add it to Streamlit secrets or your .env file."
             )
-        self.client = anthropic.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+        self.client = anthropic.Anthropic(api_key=api_key)
 
     def run(
         self,
