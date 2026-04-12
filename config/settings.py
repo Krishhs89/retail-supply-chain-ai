@@ -1,27 +1,23 @@
 """Global configuration and settings."""
 
 import os
-from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
-def _get_api_key() -> str:
-    """Read API key from env first, then Streamlit secrets (for Cloud deployment)."""
-    key = os.getenv("ANTHROPIC_API_KEY", "")
-    if key:
-        return key
-    try:
-        import streamlit as st
-        return st.secrets.get("ANTHROPIC_API_KEY", "")
-    except Exception:
-        return ""
-
-
 class Settings:
-    # Anthropic API
-    ANTHROPIC_API_KEY: str = _get_api_key()
+    # Anthropic API — read lazily so Streamlit Cloud secrets are available at access time
+    @property
+    def ANTHROPIC_API_KEY(self) -> str:
+        key = os.getenv("ANTHROPIC_API_KEY", "")
+        if key:
+            return key
+        try:
+            import streamlit as st
+            return st.secrets.get("ANTHROPIC_API_KEY", "")
+        except Exception:
+            return ""
     MODEL_ID: str = "claude-sonnet-4-6"
     MAX_TOKENS: int = 8096
 
