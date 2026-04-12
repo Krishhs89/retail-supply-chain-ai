@@ -7,17 +7,8 @@ load_dotenv()
 
 
 class Settings:
-    # Anthropic API — read lazily so Streamlit Cloud secrets are available at access time
-    @property
-    def ANTHROPIC_API_KEY(self) -> str:
-        key = os.getenv("ANTHROPIC_API_KEY", "")
-        if key:
-            return key
-        try:
-            import streamlit as st
-            return st.secrets.get("ANTHROPIC_API_KEY", "")
-        except Exception:
-            return ""
+    # Anthropic API — injected into os.environ by streamlit_app.py before this is read
+    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
     MODEL_ID: str = "claude-sonnet-4-6"
     MAX_TOKENS: int = 8096
 

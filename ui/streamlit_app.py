@@ -15,6 +15,7 @@ Tabs:
  11. Flow Map      — LangGraph DAG visualization with execution trace
 """
 
+import os
 import sys
 import json
 import time
@@ -22,6 +23,15 @@ import logging
 from pathlib import Path
 
 import streamlit as st
+
+# ── Inject Streamlit Cloud secrets into env BEFORE any other import reads them ──
+try:
+    _cloud_key = st.secrets.get("ANTHROPIC_API_KEY", "")
+    if _cloud_key and not os.environ.get("ANTHROPIC_API_KEY"):
+        os.environ["ANTHROPIC_API_KEY"] = _cloud_key
+except Exception:
+    pass  # running locally with .env — dotenv handles it
+
 import plotly.graph_objects as go
 import plotly.express as px
 import pandas as pd
