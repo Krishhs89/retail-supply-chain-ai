@@ -634,7 +634,7 @@ def _chat_content(full_width: bool = True):
                         f'</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
     else:
-        chat_col = st
+        chat_col = st.container()
 
     with chat_col:
         for msg in st.session_state.conversation_history:
@@ -1528,7 +1528,7 @@ def _price_cascade_content(with_right_panel: bool = False):
             _render_history(st.session_state.hist_price, "Run a simulation to see history.")
             _render_formula_panel("price"); _render_data_sources("price")
     else:
-        pc_main = st
+        pc_main = st.container()
 
     with pc_main:
         col1,col2,col3,col4 = st.columns(4)
@@ -1614,7 +1614,7 @@ def _supply_alert_content(with_right_panel: bool = False):
             _render_history(st.session_state.hist_supply, "Run a disruption analysis to see history.")
             _render_formula_panel("supply"); _render_data_sources("supply")
     else:
-        sa_main = st
+        sa_main = st.container()
 
     with sa_main:
         col1,col2,col3 = st.columns([1,1,1])
@@ -1689,7 +1689,7 @@ def _demand_forecast_content(with_right_panel: bool = False):
             _render_history(st.session_state.hist_forecast, "Run a forecast to see history.")
             _render_formula_panel("forecast"); _render_data_sources("forecast")
     else:
-        fc_main = st
+        fc_main = st.container()
 
     with fc_main:
         col1,col2 = st.columns([1,1])
@@ -1767,7 +1767,7 @@ def _scenario_planner_content(with_right_panel: bool = False):
             _render_history(st.session_state.hist_scenario, "Run a comparison to see history.")
             _render_formula_panel("scenario"); _render_data_sources("scenario")
     else:
-        sc_main = st
+        sc_main = st.container()
 
     with sc_main:
         sc_sku = st.selectbox("SKU", list(mock_executor.PRODUCTS.keys()), key="sc_sku")
@@ -1831,7 +1831,7 @@ def _shelf_replenishment_content(with_right_panel: bool = False):
             _render_history(st.session_state.hist_shelf, "Run a replenishment analysis to see history.")
             _render_formula_panel("shelf"); _render_data_sources("shelf")
     else:
-        sh_main = st
+        sh_main = st.container()
 
     with sh_main:
         col1,col2,col3 = st.columns(3)
@@ -1896,7 +1896,7 @@ def _financial_impact_content(with_right_panel: bool = False):
             _render_history(st.session_state.hist_finance, "Run a P&L calculation to see history.")
             _render_formula_panel("finance"); _render_data_sources("finance")
     else:
-        fi_main = st
+        fi_main = st.container()
 
     with fi_main:
         col1,col2 = st.columns(2)
