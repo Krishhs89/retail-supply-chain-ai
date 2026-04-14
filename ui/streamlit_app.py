@@ -393,6 +393,7 @@ def _get_orchestrator(_key: str = ""):
 with st.sidebar:
     st.markdown("## 🏪 Retail Supply Chain AI")
     st.markdown("*Powered by Claude claude-sonnet-4-6*")
+    st.caption("build 2026-04-13.e")
     st.divider()
 
     # ── App Version Selector ──
@@ -2257,16 +2258,18 @@ def _flow_map_content():
 
 
 # ═══════════════════════════════════════════════════════════════════════════
-# VERSION RENDERING
+# VERSION RENDERING  (build: 2026-04-13.e)
 # ═══════════════════════════════════════════════════════════════════════════
 
 # ── v1: Core (Dashboard + Chat) ──────────────────────────────────────────────
 if "v1" in (app_version or ""):
     tab_dash_v1, tab_chat_v1 = st.tabs(["Dashboard", "Chat"])
     with tab_dash_v1:
-        _dashboard_content()
+        try: _dashboard_content()
+        except Exception as _e: st.exception(_e)
     with tab_chat_v1:
-        _chat_content(full_width=True)
+        try: _chat_content(full_width=True)
+        except Exception as _e: st.exception(_e)
 
 # ── v2: Full (15 tabs) ────────────────────────────────────────────────────────
 elif "v2" in (app_version or ""):
@@ -2280,47 +2283,61 @@ elif "v2" in (app_version or ""):
     ])
 
     with tab_guide:
-        _guide_content(compact=False)
+        try: _guide_content(compact=False)
+        except Exception as _e: st.exception(_e)
 
     with tab_dash:
-        _dashboard_content()
+        try: _dashboard_content()
+        except Exception as _e: st.exception(_e)
 
     with tab_chat:
-        _chat_content(full_width=False)
+        try: _chat_content(full_width=False)
+        except Exception as _e: st.exception(_e)
 
     with tab_price:
-        _price_cascade_content(with_right_panel=True)
+        try: _price_cascade_content(with_right_panel=True)
+        except Exception as _e: st.exception(_e)
 
     with tab_supply:
-        _supply_alert_content(with_right_panel=True)
+        try: _supply_alert_content(with_right_panel=True)
+        except Exception as _e: st.exception(_e)
 
     with tab_forecast:
-        _demand_forecast_content(with_right_panel=True)
+        try: _demand_forecast_content(with_right_panel=True)
+        except Exception as _e: st.exception(_e)
 
     with tab_scenario:
-        _scenario_planner_content(with_right_panel=True)
+        try: _scenario_planner_content(with_right_panel=True)
+        except Exception as _e: st.exception(_e)
 
     with tab_shelf:
-        _shelf_replenishment_content(with_right_panel=True)
+        try: _shelf_replenishment_content(with_right_panel=True)
+        except Exception as _e: st.exception(_e)
 
     with tab_finance:
-        _financial_impact_content(with_right_panel=True)
+        try: _financial_impact_content(with_right_panel=True)
+        except Exception as _e: st.exception(_e)
 
     with tab_data:
-        _data_sources_content()
+        try: _data_sources_content()
+        except Exception as _e: st.exception(_e)
 
     with tab_workflow:
-        wf_main2, wf_hist2 = st.columns([2,1])
-        with wf_hist2:
-            _render_history(st.session_state.hist_workflow, "Run a workflow analysis to see history.")
-        with wf_main2:
-            _workflow_content()
+        try:
+            wf_main2, wf_hist2 = st.columns([2,1])
+            with wf_hist2:
+                _render_history(st.session_state.hist_workflow, "Run a workflow analysis to see history.")
+            with wf_main2:
+                _workflow_content()
+        except Exception as _e: st.exception(_e)
 
     with tab_flowmap:
-        _flow_map_content()
+        try: _flow_map_content()
+        except Exception as _e: st.exception(_e)
 
     with tab_netgraph:
-        _network_graph_content()
+        try: _network_graph_content()
+        except Exception as _e: st.exception(_e)
 
     with tab_builder:
         st.subheader("🧩 Scenario Builder — Palette + Canvas")
@@ -2450,50 +2467,61 @@ else:
     ])
 
     with tab_guide:
-        _guide_content(compact=False)
+        try: _guide_content(compact=False)
+        except Exception as _e: st.exception(_e)
 
     with tab_dash:
-        _dashboard_content()
+        try: _dashboard_content()
+        except Exception as _e: st.exception(_e)
 
     with tab_chat:
-        _chat_content(full_width=True)
+        try: _chat_content(full_width=True)
+        except Exception as _e: st.exception(_e)
 
     with tab_simulate:
-        sim_choice = st.selectbox("Analysis type:", ["Price Cascade","Supply Alert","Demand Forecast"], key="sim_choice")
-        st.divider()
-        if sim_choice == "Price Cascade":
-            _price_cascade_content(with_right_panel=False)
-            _render_details("price"); _render_run_history(st.session_state.hist_price)
-        elif sim_choice == "Supply Alert":
-            _supply_alert_content(with_right_panel=False)
-            _render_details("supply"); _render_run_history(st.session_state.hist_supply)
-        else:
-            _demand_forecast_content(with_right_panel=False)
-            _render_details("forecast"); _render_run_history(st.session_state.hist_forecast)
+        try:
+            sim_choice = st.selectbox("Analysis type:", ["Price Cascade","Supply Alert","Demand Forecast"], key="sim_choice")
+            st.divider()
+            if sim_choice == "Price Cascade":
+                _price_cascade_content(with_right_panel=False)
+                _render_details("price"); _render_run_history(st.session_state.hist_price)
+            elif sim_choice == "Supply Alert":
+                _supply_alert_content(with_right_panel=False)
+                _render_details("supply"); _render_run_history(st.session_state.hist_supply)
+            else:
+                _demand_forecast_content(with_right_panel=False)
+                _render_details("forecast"); _render_run_history(st.session_state.hist_forecast)
+        except Exception as _e: st.exception(_e)
 
     with tab_scenarios:
-        scen_choice = st.radio("Mode:", ["Scenario Planner","Strategy Canvas"], horizontal=True, key="scen_choice")
-        st.divider()
-        if scen_choice == "Scenario Planner":
-            _scenario_planner_content(with_right_panel=False)
-            _render_details("scenario"); _render_run_history(st.session_state.hist_scenario)
-        else:
-            _strategy_canvas_content()
+        try:
+            scen_choice = st.radio("Mode:", ["Scenario Planner","Strategy Canvas"], horizontal=True, key="scen_choice")
+            st.divider()
+            if scen_choice == "Scenario Planner":
+                _scenario_planner_content(with_right_panel=False)
+                _render_details("scenario"); _render_run_history(st.session_state.hist_scenario)
+            else:
+                _strategy_canvas_content()
+        except Exception as _e: st.exception(_e)
 
     with tab_ops:
-        ops_choice = st.selectbox("View:", ["Shelf & Store","Financial Impact","Data Sources"], key="ops_choice")
-        st.divider()
-        if ops_choice == "Shelf & Store":
-            _shelf_replenishment_content(with_right_panel=False)
-            _render_details("shelf"); _render_run_history(st.session_state.hist_shelf)
-        elif ops_choice == "Financial Impact":
-            _financial_impact_content(with_right_panel=False)
-            _render_details("finance"); _render_run_history(st.session_state.hist_finance)
-        else:
-            _data_sources_content()
+        try:
+            ops_choice = st.selectbox("View:", ["Shelf & Store","Financial Impact","Data Sources"], key="ops_choice")
+            st.divider()
+            if ops_choice == "Shelf & Store":
+                _shelf_replenishment_content(with_right_panel=False)
+                _render_details("shelf"); _render_run_history(st.session_state.hist_shelf)
+            elif ops_choice == "Financial Impact":
+                _financial_impact_content(with_right_panel=False)
+                _render_details("finance"); _render_run_history(st.session_state.hist_finance)
+            else:
+                _data_sources_content()
+        except Exception as _e: st.exception(_e)
 
     with tab_arch:
-        _network_graph_content()
-        st.divider()
-        with st.expander("🔄 Workflow Builder — Step-by-Step Scenario Analysis", expanded=False):
-            _workflow_content()
+        try:
+            _network_graph_content()
+            st.divider()
+            with st.expander("🔄 Workflow Builder — Step-by-Step Scenario Analysis", expanded=False):
+                _workflow_content()
+        except Exception as _e: st.exception(_e)
