@@ -368,8 +368,8 @@ def _render_details(tab_key: str):
 
 
 def _render_run_history(items: list, empty_msg: str = "No runs yet."):
-    """v3-style compact run history expander."""
-    with st.expander(f"Recent runs ({len(items)})", expanded=False):
+    """v3-style compact run history expander — auto-expanded when runs exist."""
+    with st.expander(f"📋 Run History ({len(items)})", expanded=bool(items)):
         if not items:
             st.caption(empty_msg)
         else:
@@ -2484,13 +2484,23 @@ else:
             st.divider()
             if sim_choice == "Price Cascade":
                 _price_cascade_content(with_right_panel=False)
-                _render_details("price"); _render_run_history(st.session_state.hist_price)
+                _render_details("price")
             elif sim_choice == "Supply Alert":
                 _supply_alert_content(with_right_panel=False)
-                _render_details("supply"); _render_run_history(st.session_state.hist_supply)
+                _render_details("supply")
             else:
                 _demand_forecast_content(with_right_panel=False)
-                _render_details("forecast"); _render_run_history(st.session_state.hist_forecast)
+                _render_details("forecast")
+            # Always show history for all 3 simulation types below the active form
+            st.divider()
+            st.markdown("#### 📋 Simulation History")
+            hc1, hc2, hc3 = st.columns(3)
+            with hc1:
+                _render_run_history(st.session_state.hist_price, "No Price Cascade runs yet.")
+            with hc2:
+                _render_run_history(st.session_state.hist_supply, "No Supply Alert runs yet.")
+            with hc3:
+                _render_run_history(st.session_state.hist_forecast, "No Demand Forecast runs yet.")
         except Exception as _e: st.exception(_e)
 
     with tab_scenarios:
@@ -2499,7 +2509,9 @@ else:
             st.divider()
             if scen_choice == "Scenario Planner":
                 _scenario_planner_content(with_right_panel=False)
-                _render_details("scenario"); _render_run_history(st.session_state.hist_scenario)
+                _render_details("scenario")
+                st.divider()
+                _render_run_history(st.session_state.hist_scenario)
             else:
                 _strategy_canvas_content()
         except Exception as _e: st.exception(_e)
@@ -2510,12 +2522,21 @@ else:
             st.divider()
             if ops_choice == "Shelf & Store":
                 _shelf_replenishment_content(with_right_panel=False)
-                _render_details("shelf"); _render_run_history(st.session_state.hist_shelf)
+                _render_details("shelf")
             elif ops_choice == "Financial Impact":
                 _financial_impact_content(with_right_panel=False)
-                _render_details("finance"); _render_run_history(st.session_state.hist_finance)
+                _render_details("finance")
             else:
                 _data_sources_content()
+            if ops_choice != "Data Sources":
+                # Always show history for both ops tools below the active form
+                st.divider()
+                st.markdown("#### 📋 Operations History")
+                oh1, oh2 = st.columns(2)
+                with oh1:
+                    _render_run_history(st.session_state.hist_shelf, "No Shelf & Store runs yet.")
+                with oh2:
+                    _render_run_history(st.session_state.hist_finance, "No Financial Impact runs yet.")
         except Exception as _e: st.exception(_e)
 
     with tab_arch:
