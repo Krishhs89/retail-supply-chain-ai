@@ -1523,6 +1523,404 @@ V1: Single Agent
 [Mock Data] 5 SKUs · 4 Carriers · 4 DCs · 30 Stores
            OLTP (5min) · WMS (15min) · OLAP (24h)
         """, language="")
+
+    st.divider()
+    st.markdown("## 🏗️ Technical Architecture — Builder's Guide")
+    st.caption("Everything a developer needs to understand, replicate, or extend this system.")
+
+    with st.expander("📐 Full Stack — Every Component", expanded=False):
+        st.markdown("""
+| Layer | Component | Technology | File | Purpose |
+|-------|-----------|------------|------|---------|
+| **UI** | Web app | Streamlit 1.40+ | `ui/streamlit_app.py` | Renders all tabs, handles session state, calls agent pipelines |
+| **Orchestration (V1)** | Agentic loop | Anthropic SDK + Python | `agents/orchestrator.py` | Single Claude agent iterates tool calls until a final answer |
+| **Orchestration (V2)** | Multi-agent graph | LangGraph 0.2+ | `agents/langgraph_flow.py` | 12-node state machine routes query to specialist nodes |
+| **LLM** | Foundation model | Claude claude-sonnet-4-6 (Anthropic) | `config/settings.py` | 200K context, native tool use, streaming |
+| **Tools** | Schema registry | Anthropic tool-use format | `tools/tool_definitions.py` | 17 JSON schemas telling the LLM what tools exist and their parameters |
+| **Tools** | Execution engine | Pure Python | `tools/mock_executor.py` | Implements all 17 tools with realistic mock retail data |
+| **Data models** | Schema validation | Pydantic v2 | `data/schemas.py` | Typed input/output contracts for every tool call |
+| **Config** | Settings | python-dotenv | `config/settings.py` | API keys, model ID, freshness thresholds, iteration caps |
+| **Memory (session)** | Short-term | Streamlit session_state | in-process dict | Per-user conversation history, run history, last tool calls |
+| **Memory (long-term)** | History summarization | Claude API call | `agents/orchestrator.py` | At 12+ messages, compresses history to a single summary to stay under context limit |
+| **Memory (vector DB)** | Semantic retrieval | *(not yet wired)* | — | Future: embed past decisions into pgvector / Pinecone for long-range recall |
+| **Visualization** | Charts | Plotly 5.x + Pandas | tabs across app | Waterfall, bar, fan-chart, gauge, timeline, DAG scatter |
+| **Deployment** | Cloud hosting | Streamlit Community Cloud | `requirements.txt` | Git-push → auto-redeploy; secrets injected via Streamlit Cloud dashboard |
+        """)
+
+    with st.expander("🔀 LangGraph Deep-Dive — How the V2 Graph Works", expanded=False):
+        st.markdown("""
+### What is LangGraph?
+LangGraph is a Python framework (built on top of LangChain) that lets you define an AI pipeline as an **explicit state machine** — a Directed Acyclic Graph (DAG) where nodes are functions and edges are conditional transitions. Unlike a simple chain, a graph can branch, merge, and selectively activate only the nodes relevant to a given query.
+
+### State Object
+Every node receives and returns the **same shared state dict**:
+```python
+class GraphState(TypedDict):
+    query: str               # original user question
+    intent: str              # classified by router: "price_change" | "supply_disruption" | ...
+    sku: str                 # extracted entity
+    region: str              # extracted entity
+    node_outputs: dict       # accumulated outputs from each domain node
+    tool_calls_made: list    # provenance trail
+    response_text: str       # final answer (set by synthesizer)
+    error: str | None
+```
+Nodes read from state, call tools, and write results back. The graph engine handles passing state between nodes automatically.
+
+### Node Roles
+| Node | Role | Tools it calls |
+|------|------|---------------|
+| `router` | Classifies intent, extracts SKU/region, sets routing flags | — (pure LLM classification) |
+| `price_cascade` | Simulates full price-change ripple | `simulate_price_change`, `adjust_promotional_price`, `get_competitive_pricing` |
+| `supply_disruption` | Models carrier/port/supplier disruptions | `get_carrier_status`, `get_supply_disruption_impact` |
+| `demand_forecast` | Runs 15-variable demand model | `get_demand_forecast`, `analyze_demand_variables` |
+| `scenario_planning` | Compares scenarios, detects conflicts | `run_scenario_comparison`, `detect_scenario_conflicts` |
+| `shelf_replenishment` | End-to-end replenishment chain | `check_shelf_capacity`, `trigger_replenishment` |
+| `inventory_node` | Checks stockout risk and reorder points | `get_inventory_levels`, `calculate_stockout_risk`, `get_reorder_recommendations` |
+| `carrier_node` | Finds alternate routing | `find_alternate_carriers` |
+| `accuracy_node` | Validates forecast before passing to PO | `get_forecast_accuracy` |
+| `perishable_check` | Enforces perishable caps | `check_perishable_status` |
+| `financial_impact` | Calculates P&L waterfall | `calculate_revenue_impact`, `calculate_carrying_cost` |
+| `synthesizer` | Merges all node outputs → one answer | — (pure LLM synthesis) |
+
+### Conditional Routing
+The router node sets flags in state (`route_to_price`, `route_to_supply`, etc.). LangGraph's `add_conditional_edges()` reads these flags and activates only the relevant subgraph. Example:
+```python
+graph.add_conditional_edges(
+    "router",
+    lambda s: s["intent"],
+    {
+        "price_change":        "price_cascade",
+        "supply_disruption":   "supply_disruption",
+        "demand_forecast":     "demand_forecast",
+        "scenario_planning":   "scenario_planning",
+        "shelf_replenishment": "shelf_replenishment",
+    }
+)
+```
+
+### Why LangGraph over a plain chain?
+- **Selective activation**: A supply-disruption query never runs the financial model unnecessarily.
+- **Parallel branches**: Inventory and carrier nodes can run in parallel (future enhancement).
+- **Explicit state**: Every intermediate result is visible and debuggable — see the "Node outputs" expander in Chat.
+- **Deterministic routing**: No hallucinated tool sequences — the graph topology enforces order.
+        """)
+
+    with st.expander("🧠 Memory Architecture — Short-Term, Session & Long-Term", expanded=False):
+        st.markdown("""
+### 1 — Streamlit Session State (in-process, per-user)
+`st.session_state` is a Python dict that persists across reruns **within one browser session**. This app uses it to store:
+
+```python
+st.session_state = {
+    "conversation_history":  [...],   # full message list for the LLM
+    "last_tool_calls":       [...],   # most recent tool calls → used by Network Graph tab
+    "hist_price":            [...],   # run history cards for Price Cascade
+    "hist_supply":           [...],   # run history cards for Supply Alert
+    # ... (6 more hist_* lists)
+    "freshness_warnings":    [...],   # staleness alerts from last query
+    "session_queries":       int,     # rolling counter shown in sidebar
+}
+```
+**Scope:** Dies when the browser tab closes or Streamlit Cloud restarts. Not shared across users.
+
+### 2 — History Summarization (context-window management)
+Claude claude-sonnet-4-6 has a 200K token context window. Long conversations eventually hit it. The V1 orchestrator implements a **sliding summarization** pattern:
+
+```python
+HISTORY_SUMMARIZE_THRESHOLD = 12  # messages
+
+if len(messages) >= threshold:
+    summary = claude.messages.create(
+        model=MODEL_ID,
+        messages=[
+            *messages,
+            {"role": "user", "content": "Summarize the conversation so far in 3 sentences."}
+        ]
+    )
+    messages = [{"role": "assistant", "content": summary.content[0].text}]
+    # Conversation continues from this compressed checkpoint
+```
+**Effect:** The model never loses the substance of prior turns, but the token count resets to ~200 tokens instead of thousands.
+
+### 3 — Vector Database (not yet wired — future enhancement)
+For **long-range memory across sessions** (remembering past decisions, user preferences, similar past queries), the standard pattern is:
+
+```python
+# On each completed query:
+embedding = openai.embeddings.create(input=query + response)
+vector_db.upsert(id=query_id, vector=embedding, metadata={...})
+
+# On new query:
+similar = vector_db.query(embedding, top_k=3)
+context = format_as_few_shot_examples(similar)
+# Prepend context to the system prompt
+```
+
+**Options to wire in:**
+| DB | Best for | Notes |
+|----|---------|-------|
+| **pgvector** (Postgres) | Production, self-hosted | SQL-native, easy to add to existing infra |
+| **Pinecone** | Managed, serverless | Simplest to get started; pay-per-query |
+| **Weaviate** | Hybrid semantic + keyword | Good for mixed structured/unstructured |
+| **Chroma** | Local development | Zero-config, in-memory or SQLite |
+        """)
+
+    with st.expander("🔧 Tool Use / Function Calling — How the LLM Uses Data", expanded=False):
+        st.markdown("""
+### The Problem Tools Solve
+LLMs generate text from training data — they cannot look up live inventory, current carrier status, or run a price elasticity calculation. **Tool use** bridges this gap: the LLM describes *what* it needs, Python fetches it.
+
+### How It Works (Anthropic API)
+```python
+# 1. Define tools as JSON schemas
+tools = [
+    {
+        "name": "simulate_price_change",
+        "description": "Simulate the full downstream impact of a retail price change...",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "sku":          {"type": "string"},
+                "old_price":    {"type": "number"},
+                "new_price":    {"type": "number"},
+                "horizon_weeks":{"type": "integer"}
+            },
+            "required": ["sku", "old_price", "new_price", "horizon_weeks"]
+        }
+    },
+    # ... 16 more tool schemas
+]
+
+# 2. Send query to Claude with tools
+response = client.messages.create(
+    model="claude-sonnet-4-6",
+    messages=[{"role": "user", "content": query}],
+    tools=tools,
+    max_tokens=8096
+)
+
+# 3. Claude decides which tool to call
+if response.stop_reason == "tool_use":
+    for block in response.content:
+        if block.type == "tool_use":
+            result = mock_executor.execute(block.name, block.input)
+            # Feed result back to Claude
+```
+
+### The 17 Tools by Domain
+| Domain | Tools |
+|--------|-------|
+| **Pricing** | `simulate_price_change`, `adjust_promotional_price`, `get_competitive_pricing` |
+| **Supply** | `get_carrier_status`, `get_supply_disruption_impact`, `find_alternate_carriers` |
+| **Demand** | `get_demand_forecast`, `analyze_demand_variables`, `get_forecast_accuracy` |
+| **Inventory** | `get_inventory_levels`, `calculate_stockout_risk`, `get_reorder_recommendations`, `check_shelf_capacity`, `check_perishable_status`, `trigger_replenishment` |
+| **Finance / Scenario** | `calculate_revenue_impact`, `calculate_carrying_cost`, `run_scenario_comparison`, `detect_scenario_conflicts` |
+
+### Tool Result Format
+Every tool returns a standardized envelope:
+```python
+{
+    "data":               {...},     # actual result payload
+    "provenance":         "WMS",    # which data source was used
+    "freshness_minutes":  15,        # how stale is this data?
+    "is_stale":           False,
+    "error":              None
+}
+```
+The `provenance` and `freshness_minutes` fields drive the **Data Sources tab** and the freshness warning banners in Chat.
+        """)
+
+    with st.expander("🔄 V1 Agentic Loop vs V2 LangGraph — When to Use Each", expanded=False):
+        st.markdown("""
+### V1 — Agentic Loop (`agents/orchestrator.py`)
+```
+User query
+    ↓
+Claude claude-sonnet-4-6 (with all 17 tools)
+    ↓ [decides which tool to call]
+Tool executes → result fed back to Claude
+    ↓ [Claude decides: call another tool, or answer?]
+    ↓ [repeat up to MAX_ITERATIONS times]
+Final answer
+```
+
+**Characteristics:**
+- Single model decides everything — tool selection, sequencing, and synthesis
+- Naturally handles follow-up questions ("what about the SE region specifically?")
+- More flexible but less predictable — the model may call tools in unexpected order
+- History summarization keeps context manageable over long conversations
+- Good for: exploratory analysis, multi-turn conversations, open-ended questions
+
+**Config knobs:** `MAX_ITERATIONS_DEFAULT=10`, `MAX_ITERATIONS_COMPLEX=20`, `MAX_ITERATIONS_SIMPLE=6`
+
+---
+
+### V2 — LangGraph (`agents/langgraph_flow.py`)
+```
+User query
+    ↓
+Router node (classifies intent → sets routing flags)
+    ↓
+[Only the relevant domain nodes activate]
+    ↓ ↓ ↓  (parallel in future; sequential now)
+inventory_node  carrier_node  accuracy_node  ...
+    ↓
+Synthesizer node (merges all outputs → one answer)
+```
+
+**Characteristics:**
+- Topology enforces tool routing — no hallucinated sequences
+- Every intermediate output is captured and inspectable (Node outputs expander)
+- Deterministic: same intent → same execution path every time
+- Better for: production pipelines, auditable decisions, structured reporting
+
+---
+
+### Choosing Between Them
+| Scenario | Use V1 | Use V2 |
+|----------|--------|--------|
+| Exploratory question ("what if...?") | ✅ | |
+| Multi-turn follow-up conversation | ✅ | |
+| Structured report generation | | ✅ |
+| Auditable decision trail needed | | ✅ |
+| Single-shot well-defined query | | ✅ |
+| Novel query type not in the graph | ✅ | |
+        """)
+
+    with st.expander("🚀 How to Build Your Own — Step-by-Step", expanded=False):
+        st.markdown("""
+### Prerequisites
+```bash
+pip install anthropic langgraph langchain-anthropic streamlit plotly pandas pydantic python-dotenv
+```
+
+### Step 1 — Define your domain tools
+```python
+# tools/tool_definitions.py
+MY_TOOL = {
+    "name": "get_inventory_levels",
+    "description": "Returns current inventory for a SKU at a location",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "sku":         {"type": "string"},
+            "location_id": {"type": "string"}
+        },
+        "required": ["sku", "location_id"]
+    }
+}
+ALL_TOOLS = [MY_TOOL, ...]  # list of all tool schemas
+```
+
+### Step 2 — Implement tool execution
+```python
+# tools/mock_executor.py  (or real_executor.py for production)
+def execute(tool_name: str, tool_input: dict) -> dict:
+    if tool_name == "get_inventory_levels":
+        # Query your actual DB here, or use mock data
+        return {
+            "data": {"on_hand": 240, "days_of_supply": 5},
+            "provenance": "WMS",
+            "freshness_minutes": 15,
+            "is_stale": False,
+            "error": None
+        }
+```
+
+### Step 3 — Build the LangGraph graph
+```python
+# agents/langgraph_flow.py
+from langgraph.graph import StateGraph
+from typing import TypedDict
+
+class State(TypedDict):
+    query: str; intent: str; node_outputs: dict; response_text: str
+
+def router_node(state: State) -> State:
+    # Use Claude to classify intent
+    ...
+    return {**state, "intent": "inventory_check"}
+
+def inventory_node(state: State) -> State:
+    result = execute("get_inventory_levels", {"sku": state["sku"], "location_id": state["location"]})
+    return {**state, "node_outputs": {**state["node_outputs"], "inventory": result}}
+
+def synthesizer_node(state: State) -> State:
+    # Use Claude to merge all node_outputs into one answer
+    ...
+
+graph = StateGraph(State)
+graph.add_node("router", router_node)
+graph.add_node("inventory", inventory_node)
+graph.add_node("synthesizer", synthesizer_node)
+graph.add_edge("router", "inventory")
+graph.add_edge("inventory", "synthesizer")
+graph.set_entry_point("router")
+graph.set_finish_point("synthesizer")
+app = graph.compile()
+```
+
+### Step 4 — Add memory (optional but recommended)
+```python
+# Short-term: Streamlit session_state (zero setup)
+st.session_state.setdefault("history", [])
+
+# Long-term: Add vector DB (pgvector / Chroma / Pinecone)
+import chromadb
+client = chromadb.Client()
+collection = client.create_collection("decisions")
+
+# On each completed query:
+collection.add(documents=[query + response], ids=[str(uuid4())])
+
+# On new query — retrieve similar past decisions:
+results = collection.query(query_texts=[new_query], n_results=3)
+```
+
+### Step 5 — Wire to Streamlit UI
+```python
+# ui/app.py
+import streamlit as st
+from agents.langgraph_flow import app as langgraph_app
+
+if prompt := st.chat_input("Ask anything"):
+    with st.chat_message("assistant"):
+        result = langgraph_app.invoke({"query": prompt, "node_outputs": {}})
+        st.markdown(result["response_text"])
+```
+
+### File structure to clone
+```
+your_project/
+├── config/settings.py          # API keys, model config
+├── data/schemas.py             # Pydantic models
+├── tools/tool_definitions.py   # 17 tool schemas
+├── tools/mock_executor.py      # tool implementations
+├── agents/orchestrator.py      # V1 agentic loop
+├── agents/langgraph_flow.py    # V2 LangGraph graph
+├── ui/streamlit_app.py         # Streamlit UI
+├── requirements.txt
+└── .env                        # ANTHROPIC_API_KEY=sk-...
+```
+        """)
+
+    with st.expander("📊 Production Enhancements — What to Add Next", expanded=False):
+        st.markdown("""
+| Enhancement | What it adds | How to implement |
+|-------------|-------------|-----------------|
+| **Vector DB memory** | Recall past decisions across sessions | Add Chroma / pgvector; embed query+response on each run |
+| **Real data connectors** | Replace mock data with live ERP/WMS | Swap `mock_executor.py` → `real_executor.py` with Snowflake/SAP calls |
+| **Human-in-the-loop** | Pause graph for approval on high-risk actions | LangGraph `interrupt_before=["trigger_replenishment"]` |
+| **Parallel node execution** | Faster responses | LangGraph `add_edge(["inventory","carrier"], "synthesizer")` |
+| **Streaming graph output** | Progressive results as nodes complete | LangGraph `.stream()` API + Streamlit `st.write_stream()` |
+| **Multi-user persistence** | History survives page refresh | Replace `session_state` with Redis or a lightweight DB |
+| **Evaluation / evals** | Measure answer quality over time | Log queries + responses → run LLM-as-judge scoring |
+| **Guardrails** | Prevent hallucinated tool calls | Add Pydantic validation on tool outputs + confidence thresholds |
+| **Observability** | Trace every agent step | Add LangSmith or Arize Phoenix instrumentation |
+| **Auth** | Multi-user with roles | Streamlit-Authenticator or Auth0 + user-scoped session state |
+        """)
+
     st.success("**Ready to start?** Click the **Chat** tab and type your first question.", icon="🚀")
 
 
