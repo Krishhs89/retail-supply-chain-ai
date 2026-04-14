@@ -1532,15 +1532,7 @@ def _price_cascade_content(with_right_panel: bool = False):
     st.subheader("Price Change Cascade Simulator")
     st.caption("Change a retail price → see the full ripple effect on demand, POs, inventory, and financials.")
 
-    if with_right_panel:
-        pc_main, pc_hist = st.columns([2,1])
-        with pc_hist:
-            _render_history(st.session_state.hist_price, "Run a simulation to see history.")
-            _render_formula_panel("price"); _render_data_sources("price")
-    else:
-        pc_main = st.container()
-
-    with pc_main:
+    def _body():
         col1,col2,col3,col4 = st.columns(4)
         with col1: pc_sku = st.selectbox("SKU", list(mock_executor.PRODUCTS.keys()), key="pc_sku")
         prod_info = mock_executor.PRODUCTS.get(pc_sku, {})
@@ -1611,6 +1603,16 @@ def _price_cascade_content(with_right_panel: bool = False):
                     "meta":f"Horizon: {pc_horizon}W  |  Demand Δ: {di['demand_change_pct']:+.1f}%",
                     "result":f"Revenue Δ: ${fi['net_revenue_change_usd']:+,.0f}  |  Margin Δ: ${fi['margin_change_usd']:+,.0f}",
                     "ts":_dt.datetime.now().strftime("%H:%M")})
+
+    if with_right_panel:
+        pc_main, pc_hist = st.columns([2,1])
+        with pc_hist:
+            _render_history(st.session_state.hist_price, "Run a simulation to see history.")
+            _render_formula_panel("price"); _render_data_sources("price")
+        with pc_main:
+            _body()
+    else:
+        _body()
 
 
 def _supply_alert_content(with_right_panel: bool = False):
