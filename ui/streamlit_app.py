@@ -100,6 +100,7 @@ def _init_state():
         "max_iterations_override": 10,
         "session_queries": 0, "session_tool_calls": 0, "session_iterations": 0,
         "pipeline_version": "V2 — LangGraph",
+        "app_version": "v3 — Simplified (7 tabs)",
         "hist_price": [], "hist_supply": [], "hist_forecast": [],
         "hist_scenario": [], "hist_shelf": [], "hist_finance": [],
         "hist_workflow": [], "hist_flowmap": [],
@@ -409,7 +410,7 @@ with st.sidebar:
         "v2 — Full (15 tabs)":        ("🟠", "Every tool in its own tab. Full right-side panels, Flow Map, Scenario Builder."),
         "v3 — Simplified (7 tabs)":   ("🟢", "Merged tabs, cleaner layout. Recommended for demos."),
     }
-    badge, blurb = ver_info[app_version]
+    badge, blurb = ver_info.get(app_version, ("🟢", "Merged tabs, cleaner layout. Recommended for demos."))
     st.caption(f"{badge} {blurb}")
     st.divider()
 
@@ -426,7 +427,7 @@ with st.sidebar:
 
     # ── Advanced (pipeline toggle + iteration cap) ──
     with st.expander("⚙️ Advanced", expanded=False):
-        _pipeline_default_idx = 0 if "v1" in app_version else 0  # V2 default for v3, V1 for v1
+        _pipeline_default_idx = 0  # LangGraph V2 is the default for all versions
         pipeline_ver = st.radio(
             "Chat agent backend:",
             ["V2 — LangGraph", "V1 — Agentic Loop"],
@@ -1242,29 +1243,206 @@ In retail, no decision lives in isolation. When you raise the price of diapers b
         return
 
     st.divider()
-    st.markdown("## Key Concepts Glossary")
-    g1, g2 = st.columns(2)
-    with g1:
+    st.markdown("## Glossary — All Terms Used in This App")
+    st.caption("Expand any category below. Covers every acronym, business term, functional feature, technical concept, and mock data object used across the app.")
+
+    with st.expander("📌 Acronyms & Short Forms", expanded=False):
         st.markdown("""
-| Term | Meaning |
-|------|---------|
-| **Price Elasticity** | How much demand changes per 1% price change. Diapers = -1.4 |
-| **Asymmetric Elasticity** | Price cuts don't recover demand proportionally |
-| **Replenishment Lag** | 3–4 days base + 30% chance of +3 extra days |
-| **Days of Supply (DoS)** | How many days current inventory covers at current demand rate |
-| **Safety Stock** | Minimum buffer to absorb demand spikes and late deliveries |
-| **VMI** | Vendor-Managed Inventory — manufacturer-owned, excludes from your carrying cost |
+| Acronym | Full Form | Context in this app |
+|---------|-----------|---------------------|
+| **AI** | Artificial Intelligence | The reasoning engine powering all simulations and chat |
+| **API** | Application Programming Interface | How this app calls Claude (Anthropic API) |
+| **CI** | Confidence Interval | Forecast uncertainty band — widens 15% per 4-week horizon |
+| **COGS** | Cost of Goods Sold | Direct cost of merchandise sold; used in P&L waterfall |
+| **DAG** | Directed Acyclic Graph | The visual flow diagram of the LangGraph agent pipeline |
+| **DC** | Distribution Center | Regional warehouse — DC-SE, DC-MW, DC-NE, DC-SW |
+| **DoS** | Days of Supply | Current inventory ÷ daily demand rate |
+| **EDLP** | Everyday Low Price | Pricing strategy: consistently low price, no promotions |
+| **ERP** | Enterprise Resource Planning | Back-office system (e.g., SAP) for POs, finance, HR |
+| **Hi-Lo** | High-Low Pricing | Regular price with periodic deep promotional discounts |
+| **HQ** | Headquarters | Central buying / planning office that issues store directives |
+| **KPI** | Key Performance Indicator | Headline metric shown in dashboard tiles |
+| **LLM** | Large Language Model | The type of AI (Claude claude-sonnet-4-6) running the chat and analysis |
+| **ML** | Machine Learning | Statistical models underlying demand forecasting |
+| **MW** | Midwest (region) | One of 4 carrier/store regions — affected by TruckCo B strike |
+| **NE** | Northeast (region) | One of 4 DC/store regions |
+| **OLAP** | Online Analytical Processing | Aggregated analytics data warehouse — 24-hour refresh lag |
+| **OLTP** | Online Transaction Processing | Point-of-sale and transactional database — 5-minute refresh |
+| **P&L** | Profit & Loss | Income statement view: revenue → gross margin → net income |
+| **PO** | Purchase Order | Replenishment order from DC to supplier |
+| **SE** | Southeast (region) | One of 4 DC/store regions — affected by TruckCo B strike |
+| **SKU** | Stock Keeping Unit | Unique product identifier (e.g., HUG48-3 = Huggies Size 3, 48ct) |
+| **SW** | Southwest (region) | One of 4 DC/store regions |
+| **UI** | User Interface | The Streamlit app you are using right now |
+| **VMI** | Vendor-Managed Inventory | Manufacturer-owned stock at DC — excluded from retailer carrying cost |
+| **WMS** | Warehouse Management System | Inventory and warehouse movement data — 15-minute refresh |
         """)
-    with g2:
+
+    with st.expander("🏪 Business & Retail Terms", expanded=False):
         st.markdown("""
-| Term | Meaning |
-|------|---------|
-| **Vendor Trade Dollars** | Manufacturer subsidies on promotions, netted against promo cost |
-| **Carrying Cost** | Cost of holding inventory: 25% of inventory value per year |
-| **OLTP / WMS / OLAP** | Data sources with 5-min / 15-min / 24-hour freshness lag |
-| **Planogram** | Shelf layout plan — orders over capacity go to back-of-store |
-| **Scenario Conflict** | Two decisions creating opposing supply pressure |
-| **Confidence Interval** | Forecast uncertainty band, widens 15% per 4-week horizon |
+| Term | Definition |
+|------|------------|
+| **Asymmetric Elasticity** | Price increases reduce demand more than equivalent price decreases recover it. Applies to diapers, tobacco, alcohol, and baby formula. |
+| **Carrying Cost** | Annual cost of holding inventory — modeled at **25% of inventory value per year** (includes capital, storage, shrink, obsolescence). |
+| **Chargeback / Deduction** | Penalty fee from retailer to supplier for service level failures (late PO, short fill). |
+| **Co-op Advertising** | Promotional spend partially funded by the manufacturer as part of trade terms. |
+| **Days of Supply (DoS)** | How long current on-hand inventory will last at current daily demand. Formula: `Inventory ÷ Daily Demand`. |
+| **EDLP vs Hi-Lo** | Two pricing strategies. EDLP = stable low price. Hi-Lo = normal + frequent sales. This app models Hi-Lo with asymmetric recovery. |
+| **Forecast Accuracy** | % of weeks where forecast is within 10% of actual demand. Below **60%** triggers the forecast gate (POs blocked). |
+| **Forecast Gate** | Minimum accuracy threshold: if accuracy < 60%, automatic replenishment is paused pending manual review. |
+| **In-Stock Rate** | % of SKU-store combinations with positive inventory at any given time. |
+| **Lead Time** | Total elapsed time from PO creation → DC receipt → store shelf. Modeled as 3–4 days + 30% variance. |
+| **Lost Sales** | Revenue forfeited during a stockout — units demanded but not available. |
+| **Markdown** | Permanent price reduction, typically for clearance (vs a temporary promotion). |
+| **Perishable Cap** | Hard supply ceiling for refrigerated / perishable items. Milk (MLK-GAL) = **3-day maximum**. Prevents over-ordering spoilage. |
+| **Planogram** | Prescribed shelf layout plan. If a replenishment order exceeds shelf capacity, excess goes to back-of-store. |
+| **Price Elasticity** | % change in unit demand per 1% change in price. Huggies diapers = **-1.4** (inelastic). Milk ≈ -0.5 (very inelastic). |
+| **Promo Lift** | Additional demand generated by a promotional event (price cut, feature, display). |
+| **Replenishment Lag** | Delay between placing a PO and receiving goods. Base: 3–4 days. 30% probability of 3 additional days. |
+| **Safety Stock** | Buffer inventory held above cycle stock to cover demand spikes and late deliveries. |
+| **Scenario Conflict** | Two simultaneous decisions pulling supply in opposite directions — e.g., diaper promotion (needs extra supply) + TruckCo B strike (reduces supply). |
+| **Service Level** | % of customer demand fulfilled without stockout. Target: 95–98% for essentials. |
+| **Stockout** | On-hand inventory reaches zero; sales are lost until the next replenishment arrives. |
+| **Trade Spend / Vendor Trade Dollars** | Manufacturer subsidies paid to the retailer for running promotions. Net cost = promo cost − trade dollars. |
+| **VMI (Vendor-Managed Inventory)** | Inventory physically at the DC but owned by the manufacturer. Does NOT appear in the retailer's carrying cost. |
+| **Waterfall Chart** | Step-by-step financial chart showing how gross revenue flows through deductions to net income. Used in Financial Impact tab. |
+        """)
+
+    with st.expander("⚙️ Functional Features (App Tabs)", expanded=False):
+        st.markdown("""
+| Feature / Tab | What it does |
+|---------------|-------------|
+| **Dashboard** | Live network KPI tiles: total demand, at-risk revenue, supply nodes, stockout probability. Refreshes on each run. |
+| **Chat** | Streaming multi-agent conversational interface. Ask any retail question in plain English — the AI picks the right tools. |
+| **Price Cascade** | Simulate a retail price change → see ripple effect on demand, replenishment POs, inventory levels, carrier load, and P&L simultaneously. |
+| **Supply Alert** | Model carrier strikes, port delays, or supplier bankruptcies. Shows inventory depletion timeline, at-risk revenue, and alternate routing. |
+| **Demand Forecast** | 15-variable statistical demand model with configurable horizon (1–16 weeks). Outputs weekly forecast + confidence interval fan chart. |
+| **Scenario Planner** | Compare up to 3 simultaneous business decisions. Detects conflicts, ranks scenarios by revenue impact, shows resolution options. |
+| **Shelf & Store** | End-to-end replenishment simulation: HQ order → DC processing → last-mile store delivery → shelf capacity vs planogram check. |
+| **Financial Impact** | Full P&L waterfall: gross revenue → vendor trade → net revenue → margin → carrying cost → bottom-line impact. |
+| **Data Sources** | Provenance and freshness tracker — shows which OLTP/WMS/OLAP sources fed each result and how stale the data is. |
+| **Workflow** | 6-step guided scenario builder: define event → assess impact → identify risk → choose action → model outcome → sign off. |
+| **Flow Map** | Static Plotly DAG of the LangGraph multi-agent graph. Shows nodes and edges at a glance (v2 only). |
+| **Network Graph** | Interactive step-through DAG with layer bands, execution path highlighting, and per-node tool/output detail. |
+| **Scenario Builder** | HTML5 drag-and-drop canvas with 30 decision blocks across 6 categories. Wire blocks together → Run Analysis for compound KPI impact. |
+| **Strategy Canvas** | Drag-and-drop strategic planning workspace — place and connect strategy elements visually. |
+| **Guide** | This tab — onboarding, sample queries, glossary, system facts, and AI architecture walkthrough. |
+        """)
+
+    with st.expander("🤖 Technical & AI Terms", expanded=False):
+        st.markdown("""
+| Term | Definition |
+|------|------------|
+| **Agentic Loop (V1)** | Single Claude model repeatedly calls tools, evaluates results, and decides the next tool — until it reaches a final answer. |
+| **Claude claude-sonnet-4-6** | Anthropic's AI model powering this app. 200K context window, natively supports tool use. |
+| **DAG (Directed Acyclic Graph)** | A flowchart where nodes are agents/tools and edges are data flows. No cycles — execution is always forward. |
+| **Function Calling / Tool Use** | The mechanism by which the AI calls external Python functions (tools) to retrieve data rather than hallucinating it. |
+| **LangGraph** | Python framework for building multi-agent AI systems as explicit state graphs. Used for the V2 pipeline. |
+| **LangGraph Node** | A single processing step in the graph — e.g., `price_cascade`, `inventory_check`, `synthesizer`. |
+| **LangGraph Router** | The entry node that reads the user's query and decides which domain nodes to activate. |
+| **LangGraph Synthesizer** | The exit node that receives outputs from all activated domain nodes and produces one coherent final answer. |
+| **Mock Executor** | Python module (`tools/mock_executor.py`) that simulates all 17 AI tools with realistic retail data — no live database needed. |
+| **Orchestrator (V1)** | `agents/orchestrator.py` — manages the V1 agentic loop, history summarization, and provenance tracking. |
+| **Pipeline Toggle** | Sidebar Advanced setting: switch between V1 (agentic loop) and V2 (LangGraph) at runtime. |
+| **Plotly** | Python visualization library used for waterfall charts, bar/fan charts, gauge charts, and DAG diagrams. |
+| **Pydantic** | Python data validation library. All tool inputs and outputs are typed with Pydantic models (`data/schemas.py`). |
+| **Session State** | Streamlit's per-user in-memory dictionary (`st.session_state`) that persists data across interactions within one browser session. |
+| **Streamlit** | Python framework for building interactive data web apps. Runs server-side; reruns the entire script on each user action. |
+| **Streaming** | Chat responses appear word-by-word (token-by-token) as the model generates them, rather than waiting for the full response. |
+| **Tool Schema** | JSON definition of a tool's name, description, and input parameters — what the AI reads to decide which tool to call. |
+| **V1 Pipeline** | Single-agent agentic loop. Best for exploratory, multi-turn conversation. Default for v1 app version. |
+| **V2 Pipeline** | LangGraph 12-node multi-agent graph. Best for structured, repeatable decisions. Default for v2 and v3 app versions. |
+        """)
+
+    with st.expander("🗄️ Data Sources & Systems", expanded=False):
+        st.markdown("""
+| System | Type | Refresh Rate | What it provides in this app |
+|--------|------|-------------|------------------------------|
+| **OLTP** | Transactional DB (e.g., SAP) | 5 minutes | POS sales, PO status, real-time inventory movements |
+| **WMS** | Warehouse Mgmt System | 15 minutes | DC inventory positions, inbound shipments, pick/pack status |
+| **OLAP** | Analytics Data Warehouse (e.g., Snowflake) | 24 hours | Historical demand, forecast accuracy, financial aggregates |
+| **SAP** | ERP System | ~5 min (OLTP) | Purchase orders, vendor master, financial postings |
+| **Oracle SCM** | Supply Chain Mgmt | ~15 min (WMS) | Carrier assignments, shipment tracking, logistics routing |
+| **Snowflake** | Cloud Data Warehouse | 24 hours (OLAP) | Historical analytics, forecast model training data |
+| **Circana (IRI)** | Third-party Retail Analytics | Daily | Market share, category trends, competitive pricing |
+| **Nielsen** | Consumer Research | Weekly | Consumer panel data, demand elasticity benchmarks |
+| **Freshness Warning** | App concept | — | Alert shown when a data source is beyond its expected refresh window |
+| **Provenance** | App concept | — | Which source(s) fed a specific calculation — shown in Data Sources tab |
+        """)
+
+    with st.expander("📦 Mock Data — SKUs, Carriers & Network", expanded=False):
+        st.markdown("""
+**Products (SKUs)**
+
+| SKU ID | Name | Base Price | Elasticity | Notes |
+|--------|------|-----------|------------|-------|
+| **HUG48-3** | Huggies Diapers, Size 3, 48ct | $12.99 | -1.4 | Asymmetric elasticity; subject to TruckCo B strike |
+| **PAM72-5** | Pampers Diapers, Size 5, 72ct | $22.99 | -1.2 | Premium tier; also affected by strike |
+| **MLK-GAL** | Whole Milk, 1 Gallon | $4.29 | -0.5 | Perishable — 3-day supply cap enforced |
+| **TAB-DIN** | Tablet / Dinner (shelf-stable) | $3.49 | -0.9 | General grocery; no special constraints |
+| **BLK-THR** | Black & Mild (tobacco) | $6.99 | -0.3 | Highly inelastic; age-restricted; asymmetric |
+| **CIG-PKT** | Cigarette Pack | $9.49 | -0.25 | Most inelastic SKU in the model |
+
+**Carriers**
+
+| Carrier | Status | Regions Covered | Notes |
+|---------|--------|----------------|-------|
+| **TruckCo_A** | ✅ Active | All regions | Primary backup during TruckCo B strike |
+| **TruckCo_B** | 🔴 On Strike | SE, MW | Carries diapers (HUG48-3, PAM72-5) in Southeast + Midwest |
+| **RailFreight_C** | ✅ Active | NE, SW | Long-haul; higher lead time |
+| **AirCargo_D** | ✅ Active | All regions | Expedited; 3× cost — only for critical stockout prevention |
+
+**Distribution Network**
+
+| Node | Type | Region | Capacity |
+|------|------|--------|---------|
+| **DC-SE** | Distribution Center | Southeast | 50,000 units |
+| **DC-MW** | Distribution Center | Midwest | 45,000 units |
+| **DC-NE** | Distribution Center | Northeast | 40,000 units |
+| **DC-SW** | Distribution Center | Southwest | 35,000 units |
+| **STR-001 → STR-030** | Store | All regions | 30 stores, 7–8 per region |
+        """)
+
+    with st.expander("📐 Formulas & Model Parameters", expanded=False):
+        st.markdown("""
+**Price Cascade**
+```
+Demand Δ% = Elasticity × Price Δ%
+  (with asymmetric cap: recovery is max 85% of the uplift for inelastic categories)
+Weekly Unit Delta = Base Weekly Units × Demand Δ%
+Net Revenue Δ = (New Price × New Units) − (Old Price × Old Units) − Vendor Trade Offset
+Carrying Cost Δ = ΔInventory × (Unit Cost × 25% annual rate / 52 weeks)
+```
+
+**Demand Forecast**
+```
+Forecast = Base Demand × (1 + Trend) × Seasonality × Promo Lift × Elasticity Adjustment
+Confidence Interval width = ±(Base CI) × (1 + 0.15 × floor(Horizon Weeks / 4))
+Forecast Gate: if Accuracy < 60% → block automated POs
+```
+
+**Replenishment / Inventory**
+```
+Reorder Point = (Daily Demand × Lead Time) + Safety Stock
+Safety Stock = Z-score(95%) × StdDev(Demand) × √Lead Time
+Days of Supply = On-Hand Units / Daily Demand Rate
+Perishable Max Order = min(Reorder Qty, 3 × Daily Demand)   [for MLK-GAL]
+```
+
+**Financial Impact**
+```
+Gross Revenue Δ = ΔPrice × New Volume
+Vendor Trade Offset = Promo subsidy from manufacturer (reduces net cost)
+Net Revenue Δ = Gross Revenue Δ − Vendor Trade Offset
+Margin Δ = Net Revenue Δ × Margin %
+Bottom-Line Impact = Margin Δ − Carrying Cost Δ − Lost Sales cost
+```
+
+**Scenario Conflict Score**
+```
+Conflict = 1 if (Scenario A requires supply increase) AND (Scenario B causes supply decrease)
+        for the same SKU-region combination within the same time window
+```
         """)
 
     st.divider()
@@ -2071,7 +2249,7 @@ def _flow_map_content():
 # ═══════════════════════════════════════════════════════════════════════════
 
 # ── v1: Core (Dashboard + Chat) ──────────────────────────────────────────────
-if "v1" in app_version:
+if "v1" in (app_version or ""):
     tab_dash_v1, tab_chat_v1 = st.tabs(["Dashboard", "Chat"])
     with tab_dash_v1:
         _dashboard_content()
@@ -2079,7 +2257,7 @@ if "v1" in app_version:
         _chat_content(full_width=True)
 
 # ── v2: Full (15 tabs) ────────────────────────────────────────────────────────
-elif "v2" in app_version:
+elif "v2" in (app_version or ""):
     (tab_guide, tab_dash, tab_chat, tab_price, tab_supply, tab_forecast,
      tab_scenario, tab_shelf, tab_finance, tab_data,
      tab_workflow, tab_flowmap, tab_netgraph, tab_builder, tab_canvas) = st.tabs([
