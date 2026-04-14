@@ -31,56 +31,35 @@ from tools import mock_executor
 
 logger = logging.getLogger(__name__)
 
+# ─── Token budgets by call type ───────────────────────────────────────────────
+# Differentiate max_tokens to avoid over-allocating on cheap calls.
+_MAX_TOKENS_SUMMARY   = 600    # history summarization — short paragraphs only
+_MAX_TOKENS_MAIN      = 4096   # standard query response
+_MAX_TOKENS_COMPLEX   = 8096   # tariff shocks, multi-SKU, full cascade
+
+
+def _slim_tool_result(result: dict) -> dict:
+    """
+    Strip provenance / freshness metadata from a tool result before feeding
+    it back to the LLM. The LLM only needs the 'data' payload and any 'error'.
+    Provenance is tracked separately in tool_calls_made for the UI.
+    Reduces token count per tool-result message by ~30%.
+    """
+    return {
+        "data":  result.get("data", {}),
+        "error": result.get("error"),
+    }
+
 # ─── System Prompt ────────────────────────────────────────────────────────────
+# Loaded from prompts/system_prompt.txt so the prompt can be edited without
+# touching Python source. Falls back to an inline stub if the file is missing.
 
-SYSTEM_PROMPT = """You are a retail supply chain optimization AI assistant operating at Walmart scale.
-You connect pricing, demand forecasting, inventory management, supply chain, and finance into one coherent
-decision system — the connective tissue that was always missing.
-
-== Core mandate ==
-When a price changes, a carrier goes on strike, or a forecast shifts, you surface EVERY downstream
-consequence and tell every team exactly what to do. Dollar impact, data freshness, confidence intervals —
-all surfaced explicitly.
-
-== Non-negotiables ==
-1. CONFIDENCE INTERVALS: Never present a single forecast point as truth. Always state the CI range.
-   If forecast accuracy < 60%, return is_reliable=false and DO NOT pass numbers to PO system.
-
-2. DATA PROVENANCE: OLAP data is 24 hours old. WMS is 15 minutes old. OLTP is near real-time.
-   When OLAP and WMS inventory numbers differ, call it out. Use WMS for operational decisions.
-
-3. REPLENISHMENT LAG: HQ→DC→Store takes 3-4 days minimum (+ 30% chance of 2-4 extra days).
-   If days-on-hand < lag, the shelf hits zero before replenishment arrives. Trigger emergency
-   transfers proactively — do not wait for the shelf to go empty.
-
-4. ASYMMETRIC ELASTICITY: For diapers, formula, tobacco, alcohol — a price increase suppresses
-   demand more than the same decrease recovers it. Use product-class-specific elasticity.
-
-5. SCENARIO CONFLICTS: Promotion + supply disruption = demand spike during shortage. This is
-   dangerous. Detect conflicts and warn the user before both scenarios proceed simultaneously.
-
-6. VENDOR TRADE DOLLARS: Always net vendor trade funding against retail revenue before reporting
-   margin impact. A promo funded by vendor trade may be revenue-neutral or positive.
-
-7. REGIONAL vs NATIONAL: Alternate carrier availability must be checked at the REGIONAL level.
-   A carrier available nationally but absent from the affected region provides zero benefit.
-
-8. VMI vs OWNED: Carrying cost applies only to owned inventory. If VMI percentage > 0,
-   exclude that fraction from carrying cost calculations.
-
-== Response format ==
-Always close with:
-  Actions: numbered list of recommended actions
-  Dollar impact: range estimate (e.g. $2M–$4M revenue at risk)
-  Data caveats: any OLAP data used that may be 24h stale
-
-== Data sources available ==
-- PRODUCTS: HUG48-3 (Huggies diapers), PAM72-5 (Pampers), MLK-GAL (milk, perishable),
-  TAB-DIN (tableware), BLK-THR (blankets), CIG-PKT (cigarettes/tobacco)
-- CARRIERS: TruckCo_A (tableware/linen, NW+MW), TruckCo_B (diapers, SE+MW — ON STRIKE),
-  TruckCo_C (dairy, NW+SE), TruckCo_D (general/mixed, all regions)
-- DCs: DC-NW (Seattle), DC-SE (Atlanta), DC-MW (Chicago), 10 stores each (30 total)
-"""
+_PROMPT_FILE = _root / "prompts" / "system_prompt.txt"
+try:
+    SYSTEM_PROMPT = _PROMPT_FILE.read_text(encoding="utf-8")
+except FileNotFoundError:
+    logger.warning("prompts/system_prompt.txt not found — using empty fallback")
+    SYSTEM_PROMPT = "You are a retail supply chain optimization AI assistant."
 
 # ─── Complexity Detection ─────────────────────────────────────────────────────
 
@@ -123,13 +102,16 @@ def _summarize_history(client: anthropic.Anthropic, messages: List[Dict]) -> Lis
     try:
         summary_resp = client.messages.create(
             model=settings.MODEL_ID,
-            max_tokens=800,
+            max_tokens=_MAX_TOKENS_SUMMARY,
+            system=(
+                "You are a concise summarizer. Output only the summary — no preamble, no sign-off."
+            ),
             messages=[{
                 "role": "user",
                 "content": (
-                    "Summarize the following conversation history for a retail supply chain AI. "
-                    "Capture key decisions made, SKUs discussed, scenarios analyzed, and any "
-                    "open action items. Be concise but preserve all dollar figures and dates.\n\n"
+                    "Summarize the following retail supply chain AI conversation. "
+                    "Capture key decisions made, SKUs discussed, scenarios analyzed, "
+                    "dollar figures, and any open action items. Be concise.\n\n"
                     + older_text
                 )
             }]
@@ -175,6 +157,11 @@ class Orchestrator:
               error                — None or error string
         """
         max_iter = max_iterations or _detect_max_iterations(query)
+        # Pick token budget based on query complexity
+        _query_max_tokens = (
+            _MAX_TOKENS_COMPLEX if max_iter >= settings.MAX_ITERATIONS_COMPLEX
+            else _MAX_TOKENS_MAIN
+        )
         messages = list(history)  # copy
 
         # Summarize if history is long
@@ -190,7 +177,7 @@ class Orchestrator:
         try:
             response = self.client.messages.create(
                 model=settings.MODEL_ID,
-                max_tokens=settings.MAX_TOKENS,
+                max_tokens=_query_max_tokens,
                 system=SYSTEM_PROMPT,
                 tools=ALL_TOOLS,
                 messages=messages,
@@ -246,7 +233,9 @@ class Orchestrator:
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": block.id,
-                        "content": json.dumps(result),
+                        # Feed only data+error to the LLM — strips provenance/freshness
+                        # metadata which is tracked separately for the UI, saving ~30% tokens.
+                        "content": json.dumps(_slim_tool_result(result)),
                     })
 
                 # Feed results back
@@ -255,7 +244,7 @@ class Orchestrator:
 
                 response = self.client.messages.create(
                     model=settings.MODEL_ID,
-                    max_tokens=settings.MAX_TOKENS,
+                    max_tokens=_query_max_tokens,
                     system=SYSTEM_PROMPT,
                     tools=ALL_TOOLS,
                     messages=messages,

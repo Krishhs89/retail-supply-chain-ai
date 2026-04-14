@@ -16,8 +16,40 @@ from __future__ import annotations
 import json
 import math
 import random
+import time
+import logging
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
+
+logger = logging.getLogger(__name__)
+
+# ─── TTL Cache ────────────────────────────────────────────────────────────────
+# Avoids redundant re-computation for identical tool calls within the same
+# agent loop. TTL mirrors the real data-source refresh cadences.
+
+_CACHE_TTL_SECONDS: Dict[str, int] = {
+    "OLTP": 300,    # 5 min  — POS / transactional
+    "WMS":  900,    # 15 min — warehouse management
+    "OLAP": 86400,  # 24 hr  — analytics data warehouse
+}
+_cache: Dict[str, tuple] = {}   # key → (result_dict, timestamp_float)
+
+
+def _cache_get(key: str) -> Optional[Dict]:
+    """Return cached result if still within TTL, else None."""
+    entry = _cache.get(key)
+    if not entry:
+        return None
+    result, ts = entry
+    ttl = _CACHE_TTL_SECONDS.get(result.get("provenance", "OLTP"), 300)
+    if time.time() - ts < ttl:
+        return result
+    del _cache[key]
+    return None
+
+
+def _cache_set(key: str, result: Dict) -> None:
+    _cache[key] = (result, time.time())
 
 # ─── Static Mock Data ─────────────────────────────────────────────────────────
 
@@ -1384,16 +1416,100 @@ TOOL_MAP = {
 }
 
 
+def _validate_input(tool_name: str, tool_input: Dict[str, Any]) -> Optional[str]:
+    """
+    Validate tool inputs before execution.
+    Returns an error string if invalid, None if valid.
+    """
+    # SKU validation — any tool that accepts a 'sku' parameter
+    if "sku" in tool_input:
+        sku = tool_input["sku"]
+        if not isinstance(sku, str) or sku not in PRODUCTS:
+            return (
+                f"Unknown SKU '{sku}'. Valid SKUs: {', '.join(PRODUCTS.keys())}. "
+                "Ask the user to clarify the product."
+            )
+
+    # Price bounds — must be a positive number within sane retail range
+    for price_field in ("old_price", "new_price"):
+        if price_field in tool_input:
+            try:
+                price = float(tool_input[price_field])
+            except (TypeError, ValueError):
+                return f"'{price_field}' must be a number, got: {tool_input[price_field]}"
+            if not (0.01 <= price <= 9_999.99):
+                return f"'{price_field}' = {price} is outside valid range $0.01–$9,999.99."
+
+    # Horizon weeks — positive integer
+    if "horizon_weeks" in tool_input:
+        try:
+            h = int(tool_input["horizon_weeks"])
+        except (TypeError, ValueError):
+            return f"'horizon_weeks' must be an integer, got: {tool_input['horizon_weeks']}"
+        if not (1 <= h <= 104):
+            return f"'horizon_weeks' = {h} must be between 1 and 104."
+
+    # Duration days — non-negative integer
+    if "duration_days" in tool_input:
+        try:
+            d = int(tool_input["duration_days"])
+        except (TypeError, ValueError):
+            return f"'duration_days' must be an integer, got: {tool_input['duration_days']}"
+        if d < 0 or d > 730:
+            return f"'duration_days' = {d} must be between 0 and 730."
+
+    # Location / store ID
+    if "location_id" in tool_input:
+        loc = tool_input["location_id"]
+        valid_locations = set(STORES.keys()) | set(DCS.keys())
+        if loc not in valid_locations:
+            return (
+                f"Unknown location '{loc}'. "
+                f"Valid stores: STR-001…STR-030. Valid DCs: {', '.join(DCS.keys())}."
+            )
+
+    return None  # all good
+
+
 def execute(tool_name: str, tool_input: Dict[str, Any]) -> Dict:
     """
     Execute a tool by name with the given input.
-    Always returns a structured dict — never raises.
-    Failures return an error dict with retry recommendation.
+    - Validates inputs before execution (returns structured error on failure)
+    - Caches results by TTL matching the data source refresh cadence
+    - Always returns a structured dict — never raises
     """
     fn = TOOL_MAP.get(tool_name)
     if fn is None:
-        return _error_result(tool_name, ValueError(f"Unknown tool: {tool_name}"))
+        return _error_result(tool_name, ValueError(f"Unknown tool: '{tool_name}'. Available tools: {', '.join(TOOL_MAP.keys())}"))
+
+    # Input validation
+    validation_error = _validate_input(tool_name, tool_input)
+    if validation_error:
+        return {
+            "data": {},
+            "error": f"Input validation failed for '{tool_name}': {validation_error}",
+            "provenance": "OLTP",
+            "freshness_minutes": 0,
+            "is_stale": False,
+        }
+
+    # Cache lookup — skip cache for write-like tools that have side effects
+    _NO_CACHE_TOOLS = {"trigger_replenishment", "adjust_promotional_price"}
+    cache_key = f"{tool_name}:{json.dumps(tool_input, sort_keys=True, default=str)}"
+    if tool_name not in _NO_CACHE_TOOLS:
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            logger.debug("Cache hit: %s", tool_name)
+            return cached
+
+    # Execute
     try:
-        return fn(**tool_input)
+        result = fn(**tool_input)
     except Exception as exc:
         return _error_result(tool_name, exc)
+
+    # Store in cache
+    if tool_name not in _NO_CACHE_TOOLS:
+        _cache_set(cache_key, result)
+
+    return result
