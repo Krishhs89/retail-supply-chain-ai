@@ -627,6 +627,285 @@ add_textbox(sl, Inches(1.0), Inches(6.4), Inches(11.3), Inches(0.5),
 
 
 # ═══════════════════════════════════════════════════════════════════════════
+# SLIDE 15 — DOMAIN: ASYMMETRIC ELASTICITY DEEP-DIVE
+# ═══════════════════════════════════════════════════════════════════════════
+sl = prs.slides.add_slide(blank_layout)
+slide_header(sl, "Domain Deep-Dive: Asymmetric Price Elasticity",
+             "Why standard elasticity models are wrong for tobacco, diapers, alcohol, infant formula")
+
+# Formula box
+add_rect(sl, Inches(0.4), Inches(1.35), Inches(12.5), Inches(1.55),
+         fill=RGBColor(0xF0, 0xF4, 0xFF), line=BLUE)
+add_textbox(sl, Inches(0.55), Inches(1.42), Inches(12.2), Inches(0.35),
+            "Standard formula:  Demand_delta% = Elasticity × Price_delta%", font_size=12, bold=True, color=BLUE)
+add_textbox(sl, Inches(0.55), Inches(1.78), Inches(12.2), Inches(0.35),
+            "Asymmetric adjustment:  Price ↑ → use full elasticity  |  Price ↓ → multiply by recovery_factor (0.40–0.72)",
+            font_size=11, color=DARK)
+add_textbox(sl, Inches(0.55), Inches(2.1), Inches(12.2), Inches(0.35),
+            "Example: HUG48-3 elasticity=-1.4, recovery=0.70  →  +10% price: -14% demand  |  -10% price: +9.8% demand (not +14%)",
+            font_size=11, color=RED, bold=True)
+
+# Product table
+table_slide(sl,
+    headers=["SKU", "Product", "Elasticity", "Recovery Factor", "Implication"],
+    rows=[
+        ["HUG48-3", "Huggies diapers", "-1.4", "0.70", "Habit-driven — switching cost is high"],
+        ["PAM72-5", "Pampers diapers", "-1.35", "0.72", "Brand loyal segment"],
+        ["CIG-PKT", "Cigarettes", "-0.50", "0.40", "Very addictive — price cuts barely move volume"],
+        ["MLK-GAL", "Whole milk", "-0.60", "1.00", "Commodity — symmetric, no brand lock-in"],
+        ["TAB-DIN", "Dinnerware set", "-0.90", "1.00", "Discretionary — symmetric behavior"],
+        ["BLK-THR", "Fleece blanket", "-1.10", "1.00", "Seasonal — symmetric demand"],
+    ],
+    top=Inches(3.0),
+    row_height=Inches(0.59),
+)
+
+add_rect(sl, Inches(0.4), Inches(6.65), Inches(12.5), Inches(0.65), fill=AMBER)
+add_textbox(sl, Inches(0.5), Inches(6.72), Inches(12.3), Inches(0.5),
+            "Interview insight: A symmetric model overestimates promo lift by 30–60% for habit-driven categories. At $2B diaper revenue, that's $60M–$120M in misprojected promo ROI.",
+            font_size=11, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SLIDE 16 — DOMAIN: DEMAND → PO CHAIN + REPLENISHMENT LAG
+# ═══════════════════════════════════════════════════════════════════════════
+sl = prs.slides.add_slide(blank_layout)
+slide_header(sl, "Domain Deep-Dive: Demand → PO → Shelf Chain",
+             "The full replenishment signal path and where errors compound")
+
+chain_items = [
+    ("DEMAND SIGNAL", "15-variable multiplicative model\nCI widens +15% per 4 weeks\nGate: MAPE < 60% → blocked", BLUE),
+    ("PURCHASE ORDER", "Buyer commits PO against demand signal\nError in signal → error in PO → error in stock\n1% MAPE improvement = ~$5B efficiency at scale", RGBColor(0xF3, 0x9C, 0x12)),
+    ("DC RECEIVING", "HQ→DC: 1–2 days\nDC processes + allocates to stores\nOLAP lag: DC inventory may be 24h stale", GREEN),
+    ("STORE REPLENISHMENT", "DC→Store: 2–3 days\n30% chance of +3 extra days\nEffective lag: 3.9–4.9 days", RED),
+    ("SHELF → CUSTOMER", "Planogram cap enforced\nPerishable DOS cap enforced\nStockout = lost sale + customer churn", RGBColor(0x8E, 0x44, 0xAD)),
+]
+
+box_w   = Inches(2.4)
+box_h   = Inches(4.8)
+gap     = Inches(0.18)
+top_y   = Inches(1.38)
+for i, (label, detail, color) in enumerate(chain_items):
+    left = Inches(0.35) + (box_w + gap) * i
+    add_rect(sl, left, top_y, box_w, Inches(0.42), fill=color)
+    add_textbox(sl, left + Inches(0.08), top_y + Inches(0.06), box_w - Inches(0.16), Inches(0.32),
+                label, font_size=10, bold=True, color=WHITE)
+    add_rect(sl, left, top_y + Inches(0.44), box_w, box_h - Inches(0.46),
+             fill=LIGHTGREY, line=RGBColor(0xDE, 0xE2, 0xE6))
+    add_textbox(sl, left + Inches(0.1), top_y + Inches(0.52), box_w - Inches(0.2), box_h - Inches(0.7),
+                detail, font_size=10, color=DARK)
+    if i < len(chain_items) - 1:
+        add_textbox(sl, left + box_w + Inches(0.01), top_y + Inches(0.8), gap + Inches(0.1), Inches(0.4),
+                    "→", font_size=18, bold=True, color=BLUE)
+
+add_rect(sl, Inches(0.35), Inches(6.35), Inches(12.6), Inches(0.55), fill=BLUE)
+add_textbox(sl, Inches(0.45), Inches(6.4), Inches(12.4), Inches(0.45),
+            "Key rule: If days_on_hand < effective_lag → shelf goes empty before the truck arrives. Trigger emergency replenishment NOW.",
+            font_size=11, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SLIDE 17 — BUSINESS ROI QUANTIFICATION
+# ═══════════════════════════════════════════════════════════════════════════
+sl = prs.slides.add_slide(blank_layout)
+slide_header(sl, "Business ROI: Quantifying the Value",
+             "Every number is traceable to a specific calculation in the system")
+
+table_slide(sl,
+    headers=["Opportunity", "Calculation Basis", "Estimated Impact"],
+    rows=[
+        ["Demand accuracy +7 pts", "$500B revenue × 1% improvement = $5B efficiency", "$35B efficiency potential"],
+        ["Stockout prevention (14-day strike)", "10 stores × 7.1 units/day × 14d × $14.49", "$145K per SKU per event"],
+        ["Network strike impact", "30 stores × 6 SKUs × daily revenue at risk", "$2.84M per strike window"],
+        ["Wrong PO cost avoided", "5% PO accuracy × $50B annual purchasing", "$250M annual savings"],
+        ["Promo/conflict averted (quarterly)", "1 conflict × $500K–$2M averted", "$2M–$8M annual"],
+        ["Asymmetric elasticity error", "4% perm. demand loss × $2B diaper revenue", "$80M per mispriced product"],
+        ["OLAP vs WMS data decision", "Emergency order on stale data: +900 excess units", "$13K wasted per incident"],
+        ["Perishable write-off avoided", "Dairy cap: 3-day DOS prevents markdown waste", "$50K–$200K per DC per year"],
+    ],
+    top=Inches(1.35),
+    row_height=Inches(0.68),
+)
+
+add_rect(sl, Inches(0.4), Inches(6.82), Inches(12.5), Inches(0.55), fill=GREEN)
+add_textbox(sl, Inches(0.5), Inches(6.88), Inches(12.3), Inches(0.42),
+            "One averted promo+disruption conflict per quarter = $2M+ saved. System cost at enterprise scale: ~$90K/month. ROI: 22× in year one.",
+            font_size=11, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SLIDE 18 — COST STRUCTURE: LLM TOKENS + OPTIMIZATIONS
+# ═══════════════════════════════════════════════════════════════════════════
+sl = prs.slides.add_slide(blank_layout)
+slide_header(sl, "Cost Structure: LLM API + 5 Optimizations Implemented",
+             "Claude claude-sonnet-4-6: ~$3/M input tokens · ~$15/M output tokens")
+
+# Cost table
+table_slide(sl,
+    headers=["Query Type", "Input Tokens", "Output Tokens", "Cost/Query", "Monthly (1K/day)"],
+    rows=[
+        ["Simple (1 tool, 6 iterations)", "~2,000", "~500", "$0.014", "$420"],
+        ["Standard (3 tools, 10 iterations)", "~5,000", "~1,000", "$0.030", "$900"],
+        ["Complex (5+ tools, 20 iterations)", "~8,500", "~1,500", "$0.047", "$1,410"],
+        ["History summarization (at 12+ msgs)", "~3,000", "~600", "$0.018", "Occasional"],
+    ],
+    top=Inches(1.35),
+    row_height=Inches(0.62),
+)
+
+add_textbox(sl, Inches(0.4), Inches(3.75), Inches(12.5), Inches(0.35),
+            "5 Cost Optimizations Implemented in v3.2:", font_size=13, bold=True, color=BLUE)
+
+opts = [
+    ("Token differentiation",   "summary=600, std=4096, complex=8096 (was all 8096)  →  ~30% savings on standard calls"),
+    ("_slim_tool_result()",     "Strip provenance/freshness before LLM feed-back  →  ~30% fewer tokens per tool result"),
+    ("TTL cache",               "OLTP=5min, WMS=15min, OLAP=24hr  →  cache hit = $0 API cost, ~20% hit rate saves ~$50/day"),
+    ("Rate limiting",           "30 queries/session max  →  prevents runaway budget exhaustion on shared Cloud deployment"),
+    ("History summarization",   "Compress at 12+ messages, max 600 tokens  →  fixed context overhead regardless of length"),
+]
+
+opt_colors = [RGBColor(0xCC, 0xE5, 0xFF), RGBColor(0xD4, 0xED, 0xDA), RGBColor(0xFF, 0xF3, 0xCD),
+              RGBColor(0xF8, 0xD7, 0xDA), RGBColor(0xE8, 0xD5, 0xFF)]
+for i, (label, detail) in enumerate(opts):
+    top = Inches(4.15) + Inches(0.56) * i
+    add_rect(sl, Inches(0.4), top, Inches(2.6), Inches(0.5), fill=opt_colors[i],
+             line=RGBColor(0xDE, 0xE2, 0xE6))
+    add_textbox(sl, Inches(0.5), top + Inches(0.08), Inches(2.4), Inches(0.36),
+                label, font_size=10, bold=True, color=DARK)
+    add_rect(sl, Inches(3.1), top, Inches(9.85), Inches(0.5),
+             fill=LIGHTGREY, line=RGBColor(0xDE, 0xE2, 0xE6))
+    add_textbox(sl, Inches(3.2), top + Inches(0.08), Inches(9.65), Inches(0.36),
+                detail, font_size=10, color=DARK)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SLIDE 19 — TECHNICAL: WHY/WHAT/HOW — FOUR CORE COMPONENTS
+# ═══════════════════════════════════════════════════════════════════════════
+sl = prs.slides.add_slide(blank_layout)
+slide_header(sl, "Technical Components: Why · What · How",
+             "Four core components that power every query")
+
+comp_data = [
+    (
+        "Claude claude-sonnet-4-6",
+        BLUE,
+        "WHY: Native tool-use JSON in/out; 200K context; best instruction-following for 47 supply chain rules",
+        "WHAT: Reasoning engine that selects tools, interprets results, decides next step",
+        "HOW: messages.create(tools=ALL_TOOLS) → stop_reason=tool_use → execute → feed back → repeat"
+    ),
+    (
+        "LangGraph Multi-Agent Graph",
+        GREEN,
+        "WHY: Explicit routing + TypedDict state + per-node prompts = audit-ready, governed workflows",
+        "WHAT: 12 specialist nodes (Router→Domain→Synthesizer), each with curated tool subset",
+        "HOW: StateGraph + add_conditional_edges(router, lambda s: s['intent'], {intent: node})"
+    ),
+    (
+        "Tool Layer (17 tools)",
+        RGBColor(0xF3, 0x9C, 0x12),
+        "WHY: Tools compute live values — stockout risk, elasticity, revenue — not static retrieval",
+        "WHAT: 17 domain tools covering pricing, demand, inventory, supply, finance, scenarios",
+        "HOW: JSON Schema → Claude calls → mock_executor.execute() → ToolResult (data/error/provenance)"
+    ),
+    (
+        "TTL Cache + Input Validation",
+        RED,
+        "WHY: Cache cuts ~30% API costs; validation blocks LLM hallucinations from reaching business logic",
+        "WHAT: Cache keyed on tool_name+sorted_input; TTL by data source cadence; SKU/price whitelists",
+        "HOW: _cache_get(key) before fn(); _cache_set(key, result) after; write tools bypass cache"
+    ),
+]
+
+box_h = Inches(1.35)
+for i, (title, color, why, what, how) in enumerate(comp_data):
+    top = Inches(1.38) + box_h * i
+    add_rect(sl, Inches(0.4), top, Inches(2.1), box_h - Inches(0.06), fill=color)
+    add_textbox(sl, Inches(0.5), top + Inches(0.1), Inches(1.9), box_h - Inches(0.15),
+                title, font_size=10, bold=True, color=WHITE)
+    add_rect(sl, Inches(2.6), top, Inches(10.35), box_h - Inches(0.06),
+             fill=LIGHTGREY, line=RGBColor(0xDE, 0xE2, 0xE6))
+    add_textbox(sl, Inches(2.7), top + Inches(0.06), Inches(10.15), Inches(0.32),
+                why, font_size=9, color=BLUE)
+    add_textbox(sl, Inches(2.7), top + Inches(0.38), Inches(10.15), Inches(0.32),
+                what, font_size=9, color=DARK)
+    add_textbox(sl, Inches(2.7), top + Inches(0.72), Inches(10.15), Inches(0.55),
+                how, font_size=8.5, color=GREY, italic=True)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SLIDE 20 — ARCHITECTURE DECISION LOG
+# ═══════════════════════════════════════════════════════════════════════════
+sl = prs.slides.add_slide(blank_layout)
+slide_header(sl, "Architecture Decision Log",
+             "Every major choice made with explicit rationale — ready for interview deep-dives")
+
+table_slide(sl,
+    headers=["Decision", "Chose", "Rejected", "Reason"],
+    rows=[
+        ["LLM provider", "Anthropic Claude", "OpenAI GPT-4o", "Better tool-use, larger context, instruction-following"],
+        ["Multi-agent framework", "LangGraph", "CrewAI, AutoGen", "Explicit routing, TypedDict state, auditability"],
+        ["UI framework", "Streamlit", "Flask+React, Dash", "Python-native, st.status() for agentic loops, free cloud"],
+        ["Memory strategy", "In-session summarization", "Full conversation, ext. DB", "Balance cost vs. context quality; no vendor dependency"],
+        ["Tool execution", "Pure Python mock", "SQLite, REST APIs", "Zero dependency; edge cases always reproducible"],
+        ["Prompt storage", "prompts/system_prompt.txt", "Inline Python string", "Edit without code deploy; separately versionable"],
+        ["Token budgets", "Differentiated 600/4096/8096", "Single global 8096", "30% cost reduction for standard queries"],
+        ["Tool results to LLM", "_slim_tool_result()", "Full result dict", "Strip provenance saves ~30% tokens per tool call"],
+        ["Security", "Whitelist + rate limit", "No validation", "Prevent hallucinated SKUs, prompt injection, budget blowout"],
+        ["Data sourcing", "Mock layer (proof of concept)", "Real APIs from day 1", "Faster demo; same ToolResult contract for production swap"],
+    ],
+    top=Inches(1.35),
+    row_height=Inches(0.555),
+)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SLIDE 21 — INTERVIEW Q&A: TOP 5 QUESTIONS
+# ═══════════════════════════════════════════════════════════════════════════
+sl = prs.slides.add_slide(blank_layout)
+slide_header(sl, "Interview Q&A: Top 5 Questions & Model Answers",
+             "Concise answers — use INTERVIEW_PREP.md for full detail")
+
+qa_data = [
+    (
+        "Q1: Walk me through what happens when a user sends a query",
+        "Classify complexity (6/10/20 iter) → summarize if 12+ msgs → send to Claude with 17 tools → Claude calls tools → validate input → check cache → execute → slim result (strip provenance) → feed back → repeat until end_turn → stream response + data caveats",
+        BLUE
+    ),
+    (
+        "Q2: Why LangGraph over CrewAI/AutoGen?",
+        "Explicit routing (you define edges, not agents negotiating) · TypedDict state flows through all nodes · per-node domain prompts · node-by-node audit trail. For dollar-consequence decisions, auditability > autonomy.",
+        GREEN
+    ),
+    (
+        "Q3: How do you handle prompt injection / malicious inputs?",
+        "3 layers: (1) Input validation — SKU/carrier/location whitelists before any business logic; (2) System prompt 47 non-negotiables are hard to override; (3) Rate limiting — 30 queries/session max. Production adds OAuth2 + per-user budgets.",
+        RGBColor(0xF3, 0x9C, 0x12)
+    ),
+    (
+        "Q4: What would you change to productionize this?",
+        "FastAPI + React (not single-process Streamlit) · real data connectors (Blue Yonder WMS, SAP, Snowflake) · ERP execution hooks (AI recommends → buyer approves → SAP places PO) · vector memory (Pinecone) · proactive alert queue (daily agent sweep).",
+        RED
+    ),
+    (
+        "Q5: What's the token cost on a complex query and how did you optimize it?",
+        "Complex query: ~6,380 input + 1,200 output tokens ≈ $0.037. Optimizations: differentiated max_tokens (−30% for standard) · _slim_tool_result() strips provenance (−30% per tool call) · TTL cache (~20% hit rate) · history summarization (fixed overhead at 12+ msgs).",
+        RGBColor(0x8E, 0x44, 0xAD)
+    ),
+]
+
+row_h = Inches(1.09)
+for i, (q, a, color) in enumerate(qa_data):
+    top = Inches(1.38) + row_h * i
+    add_rect(sl, Inches(0.4), top, Inches(3.2), row_h - Inches(0.06), fill=color)
+    add_textbox(sl, Inches(0.5), top + Inches(0.08), Inches(3.0), row_h - Inches(0.1),
+                q, font_size=9.5, bold=True, color=WHITE)
+    add_rect(sl, Inches(3.7), top, Inches(9.25), row_h - Inches(0.06),
+             fill=LIGHTGREY, line=RGBColor(0xDE, 0xE2, 0xE6))
+    add_textbox(sl, Inches(3.82), top + Inches(0.1), Inches(9.05), row_h - Inches(0.14),
+                a, font_size=9.5, color=DARK)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
 # SAVE
 # ═══════════════════════════════════════════════════════════════════════════
 out = "presentation.pptx"
