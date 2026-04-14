@@ -609,6 +609,7 @@ def _chat_content(full_width: bool = True):
     if not key_ok:
         st.warning("API key not detected. Add `ANTHROPIC_API_KEY` to Streamlit secrets or `.env`.")
 
+    # ── v2 right-column history panel (only in v2 full layout) ──────────────────
     if not full_width:
         chat_col, hist_col = st.columns([2, 1])
         with hist_col:
@@ -633,10 +634,18 @@ def _chat_content(full_width: bool = True):
                         f'<div class="hist-item-meta" style="color:#212529;margin-top:4px;">{a[:120]}{"…" if len(a)>120 else ""}</div>'
                         f'</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
-    else:
-        chat_col = st.container()
 
-    with chat_col:
+        # ── render chat messages + input in the left column ──
+        with chat_col:
+            for msg in st.session_state.conversation_history:
+                if isinstance(msg.get("content"), str):
+                    with st.chat_message(msg["role"]):
+                        st.markdown(msg["content"])
+            pending = st.session_state.pop("_pending_query", None)
+            st.session_state.pop("_goto_chat", None)
+            prompt = st.chat_input("Ask anything — or load a preset from the sidebar →") or pending
+    else:
+        # ── full-width: render directly, no container wrapper ──
         for msg in st.session_state.conversation_history:
             if isinstance(msg.get("content"), str):
                 with st.chat_message(msg["role"]):
@@ -647,10 +656,11 @@ def _chat_content(full_width: bool = True):
 
     if prompt:
         st.session_state.conversation_history.append({"role": "user", "content": prompt})
-        with (chat_col if not full_width else st).chat_message("user"):
+        _msg_ctx = chat_col if not full_width else st
+        with _msg_ctx.chat_message("user"):
             st.markdown(prompt)
 
-        with (chat_col if not full_width else st).chat_message("assistant"):
+        with _msg_ctx.chat_message("assistant"):
             if not key_ok:
                 st.error("ANTHROPIC_API_KEY not found.")
             else:
